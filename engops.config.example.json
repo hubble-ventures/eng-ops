@@ -1,0 +1,12 @@
+{
+  "$comment": "Optional deployment config for eng-ops. Copy to engops.config.json (or point ENGOPS_CONFIG at it). All fields are optional.",
+
+  "columnOrder": "smart",
+
+  "tables": {
+    "public.users": {
+      "$comment": "Pin these columns first, in this order; every other column follows in the database's natural order.",
+      "columnOrder": ["id", "email", "display_name", "created_at"]
+    }
+  }
+}

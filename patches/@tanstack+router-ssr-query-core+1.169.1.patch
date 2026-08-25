@@ -1,0 +1,13 @@
+diff --git a/node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js b/node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js
+index bd4b864..72868f3 100644
+--- a/node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js
++++ b/node_modules/@tanstack/router-ssr-query-core/dist/esm/index.js
+@@ -91,7 +91,7 @@ function setupCoreRouterSsrQueryIntegration({ router, queryClient, dehydrateOpti
+ 			if (dehydrated.dehydratedQueryClient) hydrate(queryClient, dehydrated.dehydratedQueryClient, hydrateOptions);
+ 			const reader = dehydrated.queryStream.getReader();
+ 			reader.read().then(async function handle({ done, value }) {
+-				hydrate(queryClient, value, hydrateOptions);
++				if (value) hydrate(queryClient, value, hydrateOptions);
+ 				if (done) return;
+ 				return handle(await reader.read());
+ 			}).catch((err) => {

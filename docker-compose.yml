@@ -1,0 +1,30 @@
+# Optional local Postgres for trying eng-ops. Not required if you already have
+# a database — just point DATABASE_URL at yours instead.
+#
+#   docker compose up -d        # start Postgres on localhost:5432
+#   npm run seed                # load the demo schema (users/posts/comments)
+#   npm run dev                 # http://localhost:3000
+#
+# Matches the default DATABASE_URL in .env.example:
+#   postgres://postgres:postgres@localhost:5432/postgres
+
+services:
+  db:
+    image: postgres:17
+    container_name: eng-ops-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - eng-ops-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  eng-ops-pgdata:

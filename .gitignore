@@ -1,0 +1,14 @@
+node_modules
+.output
+.vinxi
+.tanstack
+.env
+.env.local
+*.log
+.DS_Store
+
+# build output
+dist
+
+# local eng-ops config (keep the .example committed)
+engops.config.json
