@@ -1,0 +1,34 @@
+{
+  "name": "pg-admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs",
+    "typecheck": "tsc --noEmit",
+    "seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/seed.sql"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.102.3",
+    "@tanstack/react-router": "^1.170.32",
+    "@tanstack/react-router-ssr-query": "^1.167.1",
+    "@tanstack/react-start": "^1.168.49",
+    "pg": "^8.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tanstack/react-query-devtools": "^5.102.3",
+    "@tanstack/react-router-devtools": "^1.167.1",
+    "@types/node": "^24.10.13",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.2",
+    "vite-tsconfig-paths": "^6.0.4"
+  }
+}
