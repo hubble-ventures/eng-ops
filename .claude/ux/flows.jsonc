@@ -1,0 +1,95 @@
+// UX walkthrough manifest — what /ux-walkthrough is "pointed at".
+//
+// Edit this file to add pages/flows or change the matrix. Each flow is audited
+// against .claude/ux/RUBRIC.md at every (viewport × theme) in `matrix`, unless
+// the flow narrows it with its own `viewports` / `themes`.
+//
+// `steps` are plain-English interactions the reviewer performs in order using
+// the in-app browser (navigate / click / type / resize / set color scheme /
+// screenshot). They describe intent, not a brittle selector script — the
+// reviewer is an agent and will find the element. Keep them concrete.
+{
+  "baseUrl": "http://localhost:3000",
+
+  // Global matrix applied to every flow that doesn't override it.
+  "matrix": {
+    "viewports": [
+      { "id": "mobile",  "width": 375,  "height": 812 },
+      { "id": "tablet",  "width": 768,  "height": 1024 },
+      { "id": "desktop", "width": 1440, "height": 900 }
+    ],
+    // The app currently ships a single light theme. We still audit "dark" via
+    // prefers-color-scheme to surface hardcoded colors / missing dark support;
+    // findings there should be themes-dimension, usually `minor`/`major`.
+    "themes": ["light", "dark"]
+  },
+
+  // A pk known to exist can go stale if the DB is reseeded. Prefer steps that
+  // navigate by clicking a row's "view" link over hardcoded ids. Where a direct
+  // deep link is needed, the skill refreshes these before the run.
+  "sampleTable": "compete.competitions",
+
+  "flows": [
+    {
+      "id": "home",
+      "name": "Home / entity grid",
+      "path": "/",
+      "steps": [
+        "Load the page.",
+        "Note the header, breadcrumb, table count, and the card grid.",
+        "Hover a card to check the hover/affordance state.",
+        "Check how the grid reflows: cards should wrap, never overflow sideways."
+      ],
+      "focus": ["visibility", "responsiveness", "readability", "usability", "colors", "accessibility"]
+    },
+    {
+      "id": "entity-list",
+      "name": "Entity list — table, sort, search, filter",
+      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "steps": [
+        "Load the page; observe the toolbar, pagination, filter bar, and data table.",
+        "Confirm the wide table scrolls inside its own container and the PAGE body does not scroll horizontally.",
+        "Click the 'name' column header to sort; confirm the sort arrow and that rows reorder.",
+        "Type 'doubles' in the search box and submit; confirm results filter and a loading state (not a blank flash) appears during the fetch.",
+        "Add a filter (column=name, op=contains, value=Doubles) and confirm the chip renders and is removable.",
+        "Click 'next' pagination and confirm the transition + loading UX."
+      ],
+      "focus": ["responsiveness", "readability", "usability", "loading", "animations", "accessibility", "scaling"]
+    },
+    {
+      "id": "record-overview",
+      "name": "Record overview — links, record, related, rich cells",
+      // Reached by drilling in so it works regardless of current data.
+      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "steps": [
+        "From the list, click a row's 'view' link to open its overview.",
+        "Check the Links pills, the Record key/value table, and any Related entities sections.",
+        "Verify rich cell rendering: timestamps readable, boolean pills, NULLs, and (open a jsonb-heavy record such as documents.signatures if reachable) that JSON is a scrollable pretty-printed block.",
+        "Check a long text value wraps / expands rather than blowing out the layout."
+      ],
+      "focus": ["visibility", "readability", "usability", "colors", "scaling", "accessibility"]
+    },
+    {
+      "id": "error-state",
+      "name": "Error state — unknown entity",
+      "path": "/entities/does.not_exist?page=1&pageSize=50",
+      "steps": [
+        "Load a route for a table that doesn't exist.",
+        "Confirm the error is human-readable and styled, not a raw stack trace or a white screen."
+      ],
+      "viewports": [{ "id": "desktop", "width": 1440, "height": 900 }],
+      "focus": ["usability", "readability", "visibility"]
+    },
+    {
+      "id": "empty-results",
+      "name": "Empty results — filter that matches nothing",
+      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "steps": [
+        "Search for a nonsense string like 'zzzqqq' that matches no rows.",
+        "Confirm a clear empty state renders (not a bare table or a broken pager)."
+      ],
+      "viewports": [{ "id": "desktop", "width": 1440, "height": 900 }],
+      "focus": ["usability", "loading", "visibility"]
+    }
+  ]
+}
