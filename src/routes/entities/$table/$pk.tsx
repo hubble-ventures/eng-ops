@@ -148,15 +148,20 @@ function EntityOverviewPage() {
                 params={{ table: l.referencedTable, pk: String(l.value) }}
                 search={{ pkColumn: l.referencedColumn }}
                 title={`${l.column} → ${l.referencedTable}.${l.referencedColumn}`}
+                className="min-w-0 max-w-full"
               >
                 <Badge
                   variant="outline"
-                  className="hover:bg-accent gap-1 font-mono"
+                  className="hover:bg-accent max-w-full gap-1 font-mono"
                 >
-                  <span className="text-muted-foreground">{l.column}:</span>
-                  {lookupLabel(fkLabels, l.referencedTable, l.value) ??
-                    String(l.value)}
-                  <ArrowUpRight className="size-3 opacity-60" />
+                  <span className="text-muted-foreground shrink-0">
+                    {l.column}:
+                  </span>
+                  <span className="truncate">
+                    {lookupLabel(fkLabels, l.referencedTable, l.value) ??
+                      String(l.value)}
+                  </span>
+                  <ArrowUpRight className="size-3 shrink-0 opacity-60" />
                 </Badge>
               </Link>
             ))}
@@ -169,7 +174,7 @@ function EntityOverviewPage() {
           <CardTitle className="text-base">Record</CardTitle>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          <dl className="grid grid-cols-1 gap-x-6 lg:grid-cols-2">
             {overview.table.columns.map((c) => (
               <div
                 key={c.name}
@@ -189,6 +194,7 @@ function EntityOverviewPage() {
                     column={c}
                     foreignKeys={overview.table.foreignKeys}
                     labels={fkLabels}
+                    expandable
                   />
                 </dd>
               </div>

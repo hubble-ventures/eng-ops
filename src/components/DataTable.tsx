@@ -18,6 +18,7 @@ import {
   Rows2,
   Rows3,
   Search,
+  SearchX,
   X,
 } from 'lucide-react'
 
@@ -179,7 +180,7 @@ export function DataTable({
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" aria-label="Toggle columns">
                 <Columns3 />
                 <span className="hidden sm:inline">Columns</span>
               </Button>
@@ -219,6 +220,14 @@ export function DataTable({
                   return (
                     <TableHead
                       key={header.id}
+                      scope="col"
+                      aria-sort={
+                        sortDir === 'asc'
+                          ? 'ascending'
+                          : sortDir === 'desc'
+                            ? 'descending'
+                            : 'none'
+                      }
                       className={cn(
                         isFirst && 'sticky left-0 z-30 bg-muted/40',
                       )}
@@ -248,46 +257,50 @@ export function DataTable({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={table.getVisibleLeafColumns().length + 1}
-                  className="text-muted-foreground h-24 text-center"
-                >
-                  {search ? 'No rows match your search.' : 'No rows found.'}
+            {table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className={cn('group', pkColumn && 'cursor-pointer')}
+                onClick={() => openRow(row.original)}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell
+                    key={cell.id}
+                    className={cn(
+                      'max-w-[28rem] truncate',
+                      dense && 'py-1.5',
+                      cell.column.id === firstColId && stickyLeft,
+                    )}
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+                <TableCell className={cn('w-10 text-right', dense && 'py-1', stickyRight)}>
+                  <RowActionsMenu
+                    meta={meta}
+                    row={row.original}
+                    writeEnabled={writeEnabled}
+                  />
                 </TableCell>
               </TableRow>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className={cn('group', pkColumn && 'cursor-pointer')}
-                  onClick={() => openRow(row.original)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        'max-w-[28rem] truncate',
-                        dense && 'py-1.5',
-                        cell.column.id === firstColId && stickyLeft,
-                      )}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                  <TableCell className={cn('w-10 text-right', dense && 'py-1', stickyRight)}>
-                    <RowActionsMenu
-                      meta={meta}
-                      row={row.original}
-                      writeEnabled={writeEnabled}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
+        {/* Empty state lives OUTSIDE the horizontally-scrolling table so it
+            stays centered in the viewport instead of off-screen on wide tables. */}
+        {table.getRowModel().rows.length === 0 && (
+          <div className="text-muted-foreground flex h-24 flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+            <SearchX className="size-5 opacity-60" />
+            {search ? (
+              <span>
+                No rows match{' '}
+                <span className="text-foreground font-medium">“{search}”</span>.
+              </span>
+            ) : (
+              <span>No rows found.</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
@@ -335,7 +348,8 @@ export function DataTable({
             <Button
               variant="outline"
               size="icon"
-              className="size-8"
+              className="size-9"
+              aria-label="Previous page"
               disabled={page <= 1}
               onClick={() => onPageChange(page - 1)}
             >
@@ -344,7 +358,8 @@ export function DataTable({
             <Button
               variant="outline"
               size="icon"
-              className="size-8"
+              className="size-9"
+              aria-label="Next page"
               disabled={page >= totalPages}
               onClick={() => onPageChange(page + 1)}
             >

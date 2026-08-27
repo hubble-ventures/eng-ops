@@ -80,6 +80,7 @@ function RootComponent() {
         e.preventDefault()
         setCmdOpen((o) => !o)
       }
+      if (e.key === 'Escape') setMobileOpen(false)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -115,23 +116,26 @@ function RootComponent() {
                   className="md:hidden"
                   onClick={() => setMobileOpen(true)}
                   aria-label="Open menu"
+                  aria-expanded={mobileOpen}
+                  aria-controls="mobile-nav"
                 >
                   <Menu />
                 </Button>
                 <Link to="/" className="font-semibold md:hidden">
                   eng-ops
                 </Link>
-                <div className="hidden md:block">
+                <div className="hidden min-w-0 md:block">
                   <Breadcrumbs />
                 </div>
                 <button
                   type="button"
                   onClick={() => setCmdOpen(true)}
-                  className="text-muted-foreground hover:bg-accent ml-auto flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm"
+                  aria-label="Search tables"
+                  className="text-muted-foreground hover:bg-accent ml-auto flex shrink-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm"
                 >
                   <Search className="size-4" />
                   <span className="hidden sm:inline">Search tables…</span>
-                  <kbd className="bg-muted hidden rounded px-1.5 py-0.5 font-mono text-[10px] sm:inline">
+                  <kbd className="bg-muted text-foreground/70 hidden rounded px-1.5 py-0.5 font-mono text-[10px] sm:inline">
                     ⌘K
                   </kbd>
                 </button>
@@ -143,7 +147,13 @@ function RootComponent() {
           </div>
 
           {mobileOpen && (
-            <div className="fixed inset-0 z-50 md:hidden">
+            <div
+              id="mobile-nav"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Navigation"
+              className="fixed inset-0 z-50 md:hidden"
+            >
               <div
                 className="bg-background/60 absolute inset-0 backdrop-blur-sm"
                 onClick={() => setMobileOpen(false)}
@@ -168,8 +178,12 @@ function RootComponent() {
         </TooltipProvider>
         </Refine>
 
-        <TanStackRouterDevtools position="bottom-right" />
-        <ReactQueryDevtools buttonPosition="bottom-left" />
+        {import.meta.env.DEV && (
+          <>
+            <TanStackRouterDevtools position="bottom-right" />
+            <ReactQueryDevtools buttonPosition="bottom-left" />
+          </>
+        )}
         <Scripts />
       </body>
     </html>

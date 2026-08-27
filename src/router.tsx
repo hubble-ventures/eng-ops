@@ -32,8 +32,20 @@ export function getRouter() {
     defaultPreload: 'intent',
     defaultPreloadStaleTime: 0,
     defaultErrorComponent: ({ error }: { error: unknown }) => (
-      <div className="border-destructive/40 bg-destructive/10 text-destructive m-4 rounded-lg border p-4 text-sm">
-        {error instanceof Error ? error.message : String(error)}
+      <div
+        role="alert"
+        className="border-destructive/40 bg-destructive/10 text-destructive m-4 rounded-lg border p-4 text-sm"
+      >
+        <p className="font-medium">Something went wrong</p>
+        <p className="mt-1">
+          {error instanceof Error ? error.message : String(error)}
+        </p>
+        <a
+          href="/"
+          className="text-link mt-3 inline-block underline-offset-4 hover:underline"
+        >
+          ← Back to tables
+        </a>
       </div>
     ),
     defaultNotFoundComponent: () => (

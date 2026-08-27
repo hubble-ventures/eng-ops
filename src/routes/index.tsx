@@ -62,7 +62,10 @@ function HomePage() {
             <Card className="hover:border-ring/60 gap-2 p-4 transition-colors">
               <div className="flex items-center gap-2">
                 <Table2 className="text-muted-foreground size-4 shrink-0" />
-                <span className="min-w-0 flex-1 truncate font-mono text-sm font-medium">
+                <span
+                  className="min-w-0 flex-1 truncate font-mono text-sm font-medium"
+                  title={`${e.schema}.${e.name}`}
+                >
                   <span className="text-muted-foreground">{e.schema}.</span>
                   {e.name}
                 </span>
