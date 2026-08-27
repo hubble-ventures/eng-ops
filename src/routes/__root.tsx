@@ -1,6 +1,5 @@
 import * as React from 'react'
-import { Refine } from '@refinedev/core'
-import { useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { type QueryClient } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import {
   HeadContent,
@@ -19,8 +18,6 @@ import { themeInitScript } from '~/components/ThemeToggle'
 import { Button } from '~/components/ui/button'
 import { Toaster } from '~/components/ui/sonner'
 import { TooltipProvider } from '~/components/ui/tooltip'
-import { dataProvider } from '~/lib/refine/dataProvider'
-import { notificationProvider } from '~/lib/refine/notificationProvider'
 import { entitiesListQuery } from '~/lib/queries'
 import appCss from '~/styles.css?url'
 
@@ -70,7 +67,6 @@ function Breadcrumbs() {
 }
 
 function RootComponent() {
-  const queryClient = useQueryClient()
   const [mobileOpen, setMobileOpen] = React.useState(false)
   const [cmdOpen, setCmdOpen] = React.useState(false)
 
@@ -93,15 +89,6 @@ function RootComponent() {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
-        <Refine
-          dataProvider={dataProvider}
-          notificationProvider={notificationProvider}
-          options={{
-            reactQuery: { clientConfig: queryClient },
-            disableTelemetry: true,
-            warnWhenUnsavedChanges: false,
-          }}
-        >
         <TooltipProvider>
           <div className="grid min-h-screen md:grid-cols-[16rem_1fr]">
             <aside className="bg-card/30 sticky top-0 hidden h-screen border-r md:block">
@@ -176,7 +163,6 @@ function RootComponent() {
           <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
           <Toaster />
         </TooltipProvider>
-        </Refine>
 
         {import.meta.env.DEV && (
           <>
