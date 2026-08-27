@@ -1,6 +1,17 @@
 import { queryOptions } from '@tanstack/react-query'
 
 import { getEntityMeta, getEntityOverview, getEntityRows, listEntities } from '~/lib/functions'
+import type { FilterSpec, SortSpec } from '~/lib/types'
+
+export interface RowsQueryOpts {
+  limit: number
+  offset: number
+  filterColumn?: string | undefined
+  filterValue?: string | number | boolean | null | undefined
+  filters?: Array<FilterSpec> | undefined
+  sort?: SortSpec | undefined
+  search?: string | undefined
+}
 
 /** Query key factory — hierarchical, serializable keys. */
 export const entityKeys = {
@@ -8,15 +19,8 @@ export const entityKeys = {
   list: () => [...entityKeys.all, 'list'] as const,
   meta: (table: string) => [...entityKeys.all, 'meta', table] as const,
   rows: (table: string) => [...entityKeys.all, 'rows', table] as const,
-  rowsPage: (
-    table: string,
-    opts: {
-      limit: number
-      offset: number
-      filterColumn?: string | undefined
-      filterValue?: unknown
-    },
-  ) => [...entityKeys.rows(table), opts] as const,
+  rowsPage: (table: string, opts: RowsQueryOpts) =>
+    [...entityKeys.rows(table), opts] as const,
   overview: (table: string, pkColumn: string, pkValue: string) =>
     [...entityKeys.all, 'overview', table, pkColumn, pkValue] as const,
 }
@@ -33,15 +37,7 @@ export const entityMetaQuery = (table: string) =>
     queryFn: () => getEntityMeta({ data: { table } }),
   })
 
-export const entityRowsQuery = (
-  table: string,
-  opts: {
-    limit: number
-    offset: number
-    filterColumn?: string | undefined
-    filterValue?: string | number | boolean | null | undefined
-  },
-) =>
+export const entityRowsQuery = (table: string, opts: RowsQueryOpts) =>
   queryOptions({
     queryKey: entityKeys.rowsPage(table, opts),
     queryFn: () =>
@@ -51,7 +47,10 @@ export const entityRowsQuery = (
           limit: opts.limit,
           offset: opts.offset,
           filterColumn: opts.filterColumn,
-          filterValue: opts.filterValue as string | number | boolean | null | undefined,
+          filterValue: opts.filterValue,
+          filters: opts.filters,
+          sort: opts.sort,
+          search: opts.search,
         },
       }),
   })

@@ -25,6 +25,7 @@ function HomePage() {
             params={{ table: e.id }}
             search={{ page: 1, pageSize: 50 }}
             className="entity-card"
+            title={e.id}
           >
             <div className="entity-name">
               <span className="muted">{e.schema}.</span>

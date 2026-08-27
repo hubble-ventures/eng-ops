@@ -9,6 +9,46 @@ export type JsonScalar = string | number | boolean | null
 /** Present but absent primary-key / FK values in generic row data. */
 export type MaybeScalar = JsonScalar | undefined
 
+/** Comparison operators supported by the list-view filter builder. */
+export type FilterOp =
+  | 'eq'
+  | 'neq'
+  | 'ilike'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'is_null'
+  | 'is_not_null'
+
+/** Operators that take no value (unary predicates). */
+export const UNARY_OPS: ReadonlyArray<FilterOp> = ['is_null', 'is_not_null']
+
+export const FILTER_OP_LABELS: Record<FilterOp, string> = {
+  eq: '=',
+  neq: '≠',
+  ilike: 'contains',
+  gt: '>',
+  gte: '≥',
+  lt: '<',
+  lte: '≤',
+  is_null: 'is null',
+  is_not_null: 'is not null',
+}
+
+export interface FilterSpec {
+  column: string
+  op: FilterOp
+  value?: string | number | boolean | null
+}
+
+export type SortDir = 'asc' | 'desc'
+
+export interface SortSpec {
+  column: string
+  dir: SortDir
+}
+
 export interface RowsPage {
   rows: Array<Record<string, JsonScalar>>
   total: number

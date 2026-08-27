@@ -12,7 +12,18 @@ generates the whole admin UI from your real tables and foreign keys:
 - **Home page (`/`)** — card grid of every entity (table) in the schema.
   Click one to open its list view.
 - **Entity list (`/entities/:table`)** — paginated, raw rows for that table.
-  Foreign-key cells are rendered as links to the referenced row.
+  Foreign-key cells are rendered as links to the referenced row. Rows can be:
+  - **sorted** by clicking a column header (asc → desc → off); defaults to
+    ordering by the primary key for stable pagination,
+  - **searched** with the free-text box (case-insensitive match across every
+    column, cast to text),
+  - **filtered** with the per-column builder (`=`, `≠`, contains, `>`, `≥`,
+    `<`, `≤`, is null, is not null); active filters show as removable chips.
+  All of this lives in the URL (`?sort`, `?dir`, `?q`, `?filters`), so a
+  filtered view is shareable and survives reload.
+  Cell values are rendered by type: timestamps/dates as compact readable
+  values, booleans as pills, arrays as chips, and JSON/JSONB compacted in the
+  grid but pretty-printed in the record view.
 - **Entity overview (`/entities/:table/:pk`)** — one record, showing:
   - **Links**: pills for each outbound FK, linking to the referenced row
   - **Record**: every column as a key/value table

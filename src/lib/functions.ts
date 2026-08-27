@@ -11,12 +11,38 @@ const tableIdSchema = z
   .max(200)
   .regex(/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/, 'invalid table id')
 
+const filterOpSchema = z.enum([
+  'eq',
+  'neq',
+  'ilike',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'is_null',
+  'is_not_null',
+])
+
+const filterSchema = z.object({
+  column: z.string().min(1).max(200),
+  op: filterOpSchema,
+  value: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+})
+
+const sortSchema = z.object({
+  column: z.string().min(1).max(200),
+  dir: z.enum(['asc', 'desc']),
+})
+
 const rowsInput = z.object({
   table: tableIdSchema,
   limit: z.number().int().min(1).max(200).default(50),
   offset: z.number().int().min(0).default(0),
   filterColumn: z.string().min(1).max(200).optional(),
   filterValue: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+  filters: z.array(filterSchema).max(20).optional(),
+  sort: sortSchema.optional(),
+  search: z.string().max(200).optional(),
 })
 
 export const listEntities = createServerFn({ method: 'GET' }).handler(
@@ -50,6 +76,9 @@ export const getEntityRows = createServerFn({ method: 'GET' })
       offset: data.offset,
       filterColumn: data.filterColumn,
       filterValue: data.filterValue,
+      filters: data.filters,
+      sort: data.sort,
+      search: data.search,
     })
   })
 

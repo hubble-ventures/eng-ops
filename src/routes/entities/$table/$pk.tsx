@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { CellValue } from '~/components/CellValue'
 import { EntityTable } from '~/components/EntityTable'
+import { ErrorPanel } from '~/components/ErrorPanel'
 import { entityOverviewQuery, entityMetaQuery, entityRowsQuery } from '~/lib/queries'
 import type { TableMeta } from '~/lib/types'
 
@@ -30,6 +31,7 @@ export const Route = createFileRoute('/entities/$table/$pk')({
     )
     return { overview, pkColumn }
   },
+  errorComponent: ErrorPanel,
   component: EntityOverviewPage,
 })
 
@@ -39,7 +41,7 @@ function EntityOverviewPage() {
   const tableId = overview.table.id
 
   return (
-    <>
+    <div className="overview">
       <div className="toolbar">
         <h1 style={{ margin: 0, fontSize: '1.3rem' }}>
           <Link
@@ -87,7 +89,7 @@ function EntityOverviewPage() {
           <tbody>
             {overview.table.columns.map((c) => (
               <tr key={c.name}>
-                <th>
+                <th scope="row">
                   {c.name}
                   {c.isPrimaryKey && <span className="badge">pk</span>}
                 </th>
@@ -96,6 +98,7 @@ function EntityOverviewPage() {
                     value={row[c.name]}
                     column={c}
                     foreignKeys={overview.table.foreignKeys}
+                    mode="detail"
                   />
                 </td>
               </tr>
@@ -120,7 +123,7 @@ function EntityOverviewPage() {
           ))}
         </>
       )}
-    </>
+    </div>
   )
 }
 
@@ -159,7 +162,10 @@ function RelatedSection({
           </Link>
         </h2>
         <span className="muted">
-          where <code>{fromColumn}</code> = {pkValue}
+          where <code>{fromColumn}</code> ={' '}
+          <span className="rel-filter-val" title={pkValue}>
+            {pkValue}
+          </span>
           {page && <> &middot; {page.total} rows</>}
         </span>
       </div>

@@ -6,7 +6,10 @@
   --text-dim: #64707f;
   --accent: #2563eb;
   --accent-soft: #eff4ff;
+  /* De-emphasized but still AA-legible on white (~4.6:1) — used for NULLs. */
+  --null: #6b7280;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: light;
 }
 
 * {
@@ -123,6 +126,9 @@ a:hover {
   font-weight: 600;
   font-family: var(--mono);
   font-size: 0.95rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .entity-card .entity-stats {
   margin-top: 0.35rem;
@@ -172,8 +178,8 @@ table.data-table td .cell-link {
   font-family: var(--mono);
 }
 
-table.data-table td .null {
-  color: #b6bdc9;
+.null {
+  color: var(--null);
   font-style: italic;
 }
 
@@ -226,6 +232,9 @@ td.truncated,
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
+  /* Fixed layout so long UUID/JSON values can't stretch the table past its
+     container and force the whole page to scroll sideways. */
+  table-layout: fixed;
 }
 .kv-table th,
 .kv-table td {
@@ -234,12 +243,25 @@ td.truncated,
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
+.kv-table td {
+  overflow-wrap: anywhere;
+}
 .kv-table th {
   font-family: var(--mono);
   font-size: 0.8rem;
   color: var(--text-dim);
-  width: 260px;
+  width: 240px;
   font-weight: 500;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 640px) {
+  .kv-table th {
+    width: 38%;
+  }
+  .kv-table th,
+  .kv-table td {
+    padding: 0.4rem 0.5rem;
+  }
 }
 
 .badge {
@@ -267,6 +289,13 @@ td.truncated,
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+/* Record view is a reading layout — cap its width so short values don't leave
+   a lopsided empty half on wide monitors. */
+.overview {
+  max-width: 1100px;
 }
 
 .error-box {
@@ -283,4 +312,270 @@ td.truncated,
   color: var(--text-dim);
   padding: 2rem 0;
   text-align: center;
+}
+
+/* Sortable column headers */
+table.data-table th .th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+table.data-table th .th-sort:hover {
+  color: var(--accent);
+}
+table.data-table th .th-sort.active {
+  color: var(--accent);
+}
+table.data-table th .th-arrow {
+  font-size: 0.7rem;
+}
+
+/* Filter bar */
+.filter-bar {
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.search-form {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.search-input:focus-visible,
+.filter-builder select:focus-visible,
+.filter-value:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.filter-builder {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.filter-builder select,
+.filter-value {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: var(--mono);
+}
+.filter-value {
+  width: 130px;
+}
+
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.3rem 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.chip code {
+  font-family: var(--mono);
+}
+.chip-x {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  border-radius: 999px;
+}
+.chip-x:hover {
+  background: rgba(37, 99, 235, 0.15);
+}
+.chip-clear {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.78rem;
+  text-decoration: underline;
+}
+.chip-clear:hover {
+  color: var(--accent);
+}
+
+/* Rich cell values */
+.ts {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.ts .ts-time {
+  color: var(--text-dim);
+}
+
+.bool {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.02rem 0.4rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+.bool-true {
+  color: #0f7b43;
+  background: #ecfdf3;
+  border-color: #bbf0cf;
+}
+.bool-false {
+  color: #9a3412;
+  background: #fff4ed;
+  border-color: #fed7aa;
+}
+
+.arr {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.arr-chip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.02rem 0.4rem;
+  border-radius: 5px;
+  background: #f1f3f7;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.json-inline {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.json-block {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 0.6rem 0.75rem;
+  max-height: 320px;
+  max-width: 100%;
+  overflow: auto;
+  white-space: pre;
+}
+
+.expandable {
+  white-space: normal;
+  word-break: break-word;
+}
+.link-btn {
+  border: none;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* In-flight query feedback: dim the stale table + a small spinner. */
+.is-fetching {
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.spinner {
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  vertical-align: -0.1em;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1.6s;
+  }
+}
+
+/* Related-entity card: keep the repeated parent id from wrapping to many lines. */
+.rel-filter-val {
+  display: inline-block;
+  max-width: min(22ch, 45vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+/* Touch-friendly hit areas on small screens (WCAG 2.5.8 / 44px guideline). */
+@media (max-width: 640px) {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .search-input,
+  .filter-builder select,
+  .filter-value {
+    min-height: 44px;
+  }
+  /* In-table controls: give the small link/sort targets a real hit area
+     without making every row 44px tall. */
+  table.data-table th .th-sort {
+    min-height: 40px;
+  }
+  table.data-table td .cell-link,
+  table.data-table td a {
+    display: inline-block;
+    padding-block: 0.55rem;
+  }
 }
