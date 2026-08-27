@@ -98,7 +98,7 @@ Reviewers return findings as objects with these fields:
   "dimension": "responsiveness",     // one of the 10 above
   "severity": "major",               // blocker | major | minor | nit
   "flow": "entity-list",             // flow id from flows.jsonc
-  "page": "/entities/compete.competitions",
+  "page": "/entities/public.users",
   "viewport": "mobile",              // mobile | tablet | desktop
   "theme": "light",                  // light | dark
   "summary": "Filter row overflows the viewport instead of wrapping",

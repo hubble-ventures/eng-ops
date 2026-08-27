@@ -25,10 +25,11 @@
     "themes": ["light", "dark"]
   },
 
-  // A pk known to exist can go stale if the DB is reseeded. Prefer steps that
-  // navigate by clicking a row's "view" link over hardcoded ids. Where a direct
-  // deep link is needed, the skill refreshes these before the run.
-  "sampleTable": "compete.competitions",
+  // EXAMPLE table id — set this to a real schema-qualified table in your own
+  // database before running (e.g. "public.users"). The flows below deep-link to
+  // it; the skill refreshes any hardcoded pk before the run, and steps prefer
+  // clicking a row over hardcoded ids so they survive a reseed.
+  "sampleTable": "public.users",
 
   "flows": [
     {
@@ -37,23 +38,23 @@
       "path": "/",
       "steps": [
         "Load the page.",
-        "Note the header, breadcrumb, table count, and the card grid.",
+        "Note the header, breadcrumb, table-count badge, the tables card grid, and the persistent left sidebar (schema tree).",
         "Hover a card to check the hover/affordance state.",
-        "Check how the grid reflows: cards should wrap, never overflow sideways."
+        "Check how the grid reflows and how the left sidebar behaves as the viewport narrows: cards should wrap and the sidebar should not squeeze the content or overflow sideways on mobile."
       ],
       "focus": ["visibility", "responsiveness", "readability", "usability", "colors", "accessibility"]
     },
     {
       "id": "entity-list",
-      "name": "Entity list — table, sort, search, filter",
-      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "name": "Entity list — table, sort, search, columns, pagination",
+      "path": "/entities/public.users?page=1&pageSize=50",
       "steps": [
-        "Load the page; observe the toolbar, pagination, filter bar, and data table.",
+        "Load the page; observe the toolbar (Search rows box, density 'Compact' toggle, 'Columns' dropdown), pagination footer, and data table.",
         "Confirm the wide table scrolls inside its own container and the PAGE body does not scroll horizontally.",
         "Click the 'name' column header to sort; confirm the sort arrow and that rows reorder.",
-        "Type 'doubles' in the search box and submit; confirm results filter and a loading state (not a blank flash) appears during the fetch.",
-        "If the UI offers per-column filters, add one (e.g. name contains 'Doubles') and confirm it applies and is removable.",
-        "Click 'next' pagination and confirm the transition + loading UX."
+        "Type 'Men' in the search box; the search is DEBOUNCED (~300ms) with no submit button and no Enter needed — after the debounce confirm results filter and that a loading affordance (the table dims via opacity, not a blank flash) appears during the fetch.",
+        "Open the 'Columns' dropdown and toggle a column's visibility off then on; confirm the table updates. (This app has column show/hide, not per-column value filters.)",
+        "Click the next-page (chevron-right) pagination button and confirm the transition + loading UX."
       ],
       "focus": ["responsiveness", "readability", "usability", "loading", "animations", "accessibility", "scaling"]
     },
@@ -61,11 +62,11 @@
       "id": "record-overview",
       "name": "Record overview — links, record, related, rich cells",
       // Reached by drilling in so it works regardless of current data.
-      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "path": "/entities/public.users?page=1&pageSize=50",
       "steps": [
-        "From the list, click a row's 'view' link to open its overview.",
-        "Check the Links pills, the Record key/value table, and any Related entities sections.",
-        "Verify rich cell rendering: timestamps readable, boolean pills, NULLs, and (open a jsonb-heavy record such as documents.signatures if reachable) that JSON is a scrollable pretty-printed block.",
+        "From the list, click a row (the whole row is clickable — there is no separate 'view' link; the right-hand ⋯ menu is row actions, not navigation) to open its overview.",
+        "Check the 'References' card (outbound FK badge pills), the 'Record' key/value table, and any 'Related entities' sections.",
+        "Verify rich cell rendering: timestamps readable, boolean pills, NULLs, and (open a record from a table with a jsonb column, if reachable) that JSON is a scrollable pretty-printed block.",
         "Check a long text value wraps / expands rather than blowing out the layout."
       ],
       "focus": ["visibility", "readability", "usability", "colors", "scaling", "accessibility"]
@@ -84,7 +85,7 @@
     {
       "id": "empty-results",
       "name": "Empty results — filter that matches nothing",
-      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "path": "/entities/public.users?page=1&pageSize=50",
       "steps": [
         "Search for a nonsense string like 'zzzqqq' that matches no rows.",
         "Confirm a clear empty state renders (not a bare table or a broken pager)."
