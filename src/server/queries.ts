@@ -10,6 +10,7 @@ import {
   quoteIdent,
   type ColumnValue,
 } from './sql'
+import type { ColumnFilter } from '~/lib/filters'
 import type { JsonScalar, RowsPage } from '~/lib/types'
 
 /**
@@ -58,12 +59,76 @@ function assertColumn(meta: TableMeta, column: string): string {
   return col.name
 }
 
+/**
+ * Build one parameterized SQL condition for a type-aware column filter.
+ * The identifier is validated against introspection (assertColumn); every
+ * value is bound (never interpolated). `push` registers a bind value and
+ * returns its `$n` placeholder. Returns null for an unknown operator or a
+ * value-taking operator with no value (the filter is simply skipped).
+ */
+function buildFilterCondition(
+  meta: TableMeta,
+  filter: ColumnFilter,
+  push: (value: unknown) => string,
+): string | null {
+  const col = quoteIdent(assertColumn(meta, filter.column))
+  const { op, value } = filter
+
+  // No-value operators first.
+  switch (op) {
+    case 'isNull':
+      return `${col} IS NULL`
+    case 'isNotNull':
+      return `${col} IS NOT NULL`
+    case 'isTrue':
+      return `${col} = true`
+    case 'isFalse':
+      return `${col} = false`
+  }
+
+  // Everything below needs a value.
+  if (value === undefined || value === null || value === '') return null
+
+  switch (op) {
+    case 'contains':
+      return `${col}::text ILIKE ${push(`%${value}%`)}`
+    case 'startsWith':
+      return `${col}::text ILIKE ${push(`${value}%`)}`
+    case 'endsWith':
+      return `${col}::text ILIKE ${push(`%${value}`)}`
+    case 'eq':
+      return `${col} = ${push(value)}`
+    case 'neq':
+      // IS DISTINCT FROM so the filter reads intuitively around NULLs.
+      return `${col} IS DISTINCT FROM ${push(value)}`
+    case 'gt':
+      return `${col} > ${push(value)}`
+    case 'gte':
+      return `${col} >= ${push(value)}`
+    case 'lt':
+      return `${col} < ${push(value)}`
+    case 'lte':
+      return `${col} <= ${push(value)}`
+    // Date operators compare by calendar day (works for date & timestamp cols).
+    case 'on':
+      return `${col}::date = ${push(value)}::date`
+    case 'before':
+      return `${col}::date < ${push(value)}::date`
+    case 'after':
+      return `${col}::date > ${push(value)}::date`
+    default:
+      return null
+  }
+}
+
 export async function listRows(opts: {
   tableId: string
   limit: number
   offset: number
   filterColumn?: string | undefined
   filterValue?: unknown
+  /** type-aware per-column filters (see ~/lib/filters) */
+  filters?: Array<ColumnFilter> | undefined
   /** column to ORDER BY — validated against introspected columns */
   orderBy?: string | undefined
   orderDir?: 'asc' | 'desc' | undefined
@@ -73,15 +138,24 @@ export async function listRows(opts: {
   const meta = await getTableMeta(opts.tableId)
   const pool = getPool()
 
-  // Build the WHERE clause from an exact-match filter and/or a global search.
-  // Every value is parameterized; every identifier comes from introspection.
+  // Build the WHERE clause from an exact-match filter, per-column filters,
+  // and/or a global search. Every value is parameterized; every identifier
+  // comes from introspection.
   const conditions: Array<string> = []
   const whereParams: Array<unknown> = []
+  const push = (value: unknown): string => {
+    whereParams.push(value)
+    return `$${whereParams.length}`
+  }
 
   if (opts.filterColumn !== undefined) {
     const col = assertColumn(meta, opts.filterColumn)
-    whereParams.push(opts.filterValue ?? null)
-    conditions.push(`${quoteIdent(col)} = $${whereParams.length}`)
+    conditions.push(`${quoteIdent(col)} = ${push(opts.filterValue ?? null)}`)
+  }
+
+  for (const filter of opts.filters ?? []) {
+    const condition = buildFilterCondition(meta, filter, push)
+    if (condition) conditions.push(condition)
   }
 
   const search = opts.search?.trim()

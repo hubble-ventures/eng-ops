@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
+import { columnFilterSchema } from '~/lib/filters'
 import type { EntityOverview, EntitySummary, JsonScalar, RowsPage, TableMeta } from '~/lib/types'
 import { env } from '~/server/env'
 import { introspectSchema, getTableMeta } from '~/server/introspect'
@@ -26,6 +27,8 @@ const rowsInput = z.object({
   offset: z.number().int().min(0).default(0),
   filterColumn: z.string().min(1).max(200).optional(),
   filterValue: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+  /** Type-aware per-column filters (see ~/lib/filters). */
+  filters: z.array(columnFilterSchema).max(20).optional(),
   orderBy: z.string().min(1).max(200).optional(),
   orderDir: z.enum(['asc', 'desc']).optional(),
   search: z.string().max(500).optional(),
@@ -67,6 +70,7 @@ export const getEntityRows = createServerFn({ method: 'GET' })
       offset: data.offset,
       filterColumn: data.filterColumn,
       filterValue: data.filterValue,
+      filters: data.filters,
       orderBy: data.orderBy,
       orderDir: data.orderDir,
       search: data.search,
