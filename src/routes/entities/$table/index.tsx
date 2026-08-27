@@ -73,7 +73,10 @@ function EntityListPage() {
       orderBy: sort,
       orderDir: dir,
       search: q,
-      filters: activeFilters,
+      // Pass the raw search value (not the []-normalized activeFilters) so the
+      // query key matches the loader's ensureQueryData key when no filters are
+      // set — otherwise the SSR prefetch is a cache miss and refetches.
+      filters,
     }),
   )
   const rowsPage = rowsQuery.data

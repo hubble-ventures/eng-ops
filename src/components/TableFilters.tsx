@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { ListFilter, Plus, X } from 'lucide-react'
+import { ListFilter, X } from 'lucide-react'
 
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -183,11 +183,6 @@ function FilterPopover({
     if (open) setDraft(initial ?? null)
   }, [open, initial])
 
-  const fkColumns = React.useMemo(
-    () => new Set(meta.foreignKeys.map((f) => f.column)),
-    [meta.foreignKeys],
-  )
-
   function pickColumn(name: string) {
     const kind = kindOf(name)
     const op = OPS_FOR_KIND[kind][0] ?? 'eq'
@@ -222,7 +217,7 @@ function FilterPopover({
                       variant="outline"
                       className="ml-auto text-[10px]"
                     >
-                      {KIND_LABEL[columnKind(c, fkColumns.has(c.name))]}
+                      {KIND_LABEL[kindOf(c.name)]}
                     </Badge>
                   </CommandItem>
                 ))}

@@ -94,13 +94,9 @@ const NUMBER_UDT = new Set([
   'float8',
   'money',
 ])
-const DATE_UDT = new Set([
-  'date',
-  'timestamp',
-  'timestamptz',
-  'time',
-  'timetz',
-])
+// Only calendar types — the date operators compare by day (col::date), which
+// Postgres cannot cast from `time`/`timetz`, so those stay text-kind.
+const DATE_UDT = new Set(['date', 'timestamp', 'timestamptz'])
 
 /** Map a column's type to a filter kind (drives operators + value control). */
 export function columnKind(column: ColumnMeta, isForeignKey: boolean): FilterKind {
@@ -139,7 +135,7 @@ export function isFilterComplete(f: ColumnFilter): boolean {
 export const columnFilterSchema = z.object({
   column: z.string().min(1).max(200),
   op: z.enum(FILTER_OPS as [FilterOp, ...Array<FilterOp>]),
-  value: z.union([z.string(), z.number(), z.boolean(), z.null()]).optional(),
+  value: z
+    .union([z.string().max(500), z.number(), z.boolean(), z.null()])
+    .optional(),
 })
-
-export type ColumnFilterInput = z.infer<typeof columnFilterSchema>

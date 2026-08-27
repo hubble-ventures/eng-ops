@@ -9,7 +9,6 @@ import {
   createRow,
   deleteRow,
   getRow,
-  getRowByPk,
   getRowLabels,
   listRows,
   updateRow,
@@ -164,12 +163,6 @@ export const getEntityLabels = createServerFn({ method: 'GET' })
       })
     }
     return { results }
-  })
-
-export const getEntityRowByPk = createServerFn({ method: 'GET' })
-  .validator(z.object({ table: tableIdSchema, pk: rowData }))
-  .handler(async ({ data }): Promise<Record<string, JsonScalar> | null> => {
-    return await getRowByPk({ tableId: data.table, pk: data.pk })
   })
 
 export const createEntityRow = createServerFn({ method: 'POST' })
