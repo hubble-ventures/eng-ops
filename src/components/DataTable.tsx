@@ -24,6 +24,7 @@ import {
 
 import { CellValue } from '~/components/CellValue'
 import { RowActionsMenu } from '~/components/RecordDialogs'
+import { TableFilters } from '~/components/TableFilters'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import {
@@ -51,6 +52,7 @@ import {
   TableRow,
 } from '~/components/ui/table'
 import { cn } from '~/lib/utils'
+import type { ColumnFilter } from '~/lib/filters'
 import type { JsonScalar, TableMeta } from '~/lib/types'
 
 type Row = Record<string, JsonScalar>
@@ -72,6 +74,8 @@ export interface DataTableProps {
   onPageSizeChange: (pageSize: number) => void
   search: string
   onSearchChange: (search: string) => void
+  filters: Array<ColumnFilter>
+  onFiltersChange: (filters: Array<ColumnFilter>) => void
   isFetching?: boolean
 }
 
@@ -89,6 +93,8 @@ export function DataTable({
   onPageSizeChange,
   search,
   onSearchChange,
+  filters,
+  onFiltersChange,
   isFetching = false,
 }: DataTableProps) {
   const [columnVisibility, setColumnVisibility] =
@@ -168,6 +174,11 @@ export function DataTable({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <SearchBox value={search} onChange={onSearchChange} />
+        <TableFilters
+          meta={meta}
+          filters={filters}
+          onChange={onFiltersChange}
+        />
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="outline"

@@ -9,6 +9,7 @@ import { DataTable } from '~/components/DataTable'
 import { CreateRowButton } from '~/components/RecordDialogs'
 import { Badge } from '~/components/ui/badge'
 import { Skeleton } from '~/components/ui/skeleton'
+import { columnFilterSchema, type ColumnFilter } from '~/lib/filters'
 import {
   buildLabelLookup,
   buildLabelRequests,
@@ -24,6 +25,7 @@ const searchSchema = z.object({
   sort: z.string().optional(),
   dir: z.enum(['asc', 'desc']).optional(),
   q: z.string().optional(),
+  filters: z.array(columnFilterSchema).catch([]).optional(),
 })
 
 export const Route = createFileRoute('/entities/$table/')({
@@ -35,6 +37,7 @@ export const Route = createFileRoute('/entities/$table/')({
     sort: search.sort,
     dir: search.dir,
     q: search.q,
+    filters: search.filters,
   }),
   loader: async ({ params, context, deps }) => {
     const meta = await context.queryClient.ensureQueryData(
@@ -47,6 +50,7 @@ export const Route = createFileRoute('/entities/$table/')({
         orderBy: deps.sort,
         orderDir: deps.dir,
         search: deps.q,
+        filters: deps.filters,
       }),
     )
     return { meta }
@@ -56,9 +60,11 @@ export const Route = createFileRoute('/entities/$table/')({
 
 function EntityListPage() {
   const { table } = Route.useParams()
-  const { page, pageSize, sort, dir, q } = Route.useSearch()
+  const { page, pageSize, sort, dir, q, filters } = Route.useSearch()
   const { meta } = Route.useLoaderData()
   const navigate = Route.useNavigate()
+
+  const activeFilters = filters ?? []
 
   const rowsQuery = useQuery(
     entityRowsQuery(table, {
@@ -67,6 +73,10 @@ function EntityListPage() {
       orderBy: sort,
       orderDir: dir,
       search: q,
+      // Pass the raw search value (not the []-normalized activeFilters) so the
+      // query key matches the loader's ensureQueryData key when no filters are
+      // set — otherwise the SSR prefetch is a cache miss and refetches.
+      filters,
     }),
   )
   const rowsPage = rowsQuery.data
@@ -96,6 +106,16 @@ function EntityListPage() {
         page: 1,
         sort: first?.id,
         dir: first ? (first.desc ? 'desc' : 'asc') : undefined,
+      }),
+    })
+  }
+
+  function handleFiltersChange(next: Array<ColumnFilter>) {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        page: 1,
+        filters: next.length > 0 ? next : undefined,
       }),
     })
   }
@@ -152,6 +172,8 @@ function EntityListPage() {
               }),
             })
           }
+          filters={activeFilters}
+          onFiltersChange={handleFiltersChange}
         />
       ) : (
         <div className="space-y-2">

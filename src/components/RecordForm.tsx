@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { useCreate, useUpdate } from '@refinedev/core'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -13,8 +13,9 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import { Textarea } from '~/components/ui/textarea'
+import { createEntityRow, updateEntityRow } from '~/lib/functions'
+import { pkFromRow } from '~/lib/pk'
 import { entityKeys } from '~/lib/queries'
-import { encodeRowId, pkFromRow } from '~/lib/refine/rowKey'
 import { cn } from '~/lib/utils'
 import type { ColumnMeta, JsonScalar, TableMeta } from '~/lib/types'
 
@@ -113,9 +114,21 @@ export function RecordForm({
   const [error, setError] = React.useState<string | null>(null)
   const [pending, setPending] = React.useState(false)
 
-  const { mutate: create } = useCreate()
-  const { mutate: update } = useUpdate()
   const queryClient = useQueryClient()
+
+  const createMutation = useMutation({
+    mutationFn: (payload: Record<string, JsonScalar>) =>
+      createEntityRow({ data: { table: meta.id, data: payload } }),
+  })
+  const updateMutation = useMutation({
+    mutationFn: (vars: {
+      pk: Record<string, JsonScalar>
+      patch: Record<string, JsonScalar>
+    }) =>
+      updateEntityRow({
+        data: { table: meta.id, pk: vars.pk, patch: vars.patch },
+      }),
+  })
 
   const fkByColumn = React.useMemo(
     () => new Map(meta.foreignKeys.map((f) => [f.column, f])),
@@ -180,17 +193,15 @@ export function RecordForm({
     const onSuccess = () => {
       setPending(false)
       invalidate()
+      toast.success(mode === 'create' ? 'Row created' : 'Row updated')
       onDone()
     }
 
     if (mode === 'create') {
-      create({ resource: meta.id, values: payload }, { onSuccess, onError })
+      createMutation.mutate(payload, { onSuccess, onError })
     } else {
       const pk = pkFromRow(meta.columns, initialRow ?? {})
-      update(
-        { resource: meta.id, id: encodeRowId(pk), values: payload },
-        { onSuccess, onError },
-      )
+      updateMutation.mutate({ pk, patch: payload }, { onSuccess, onError })
     }
   }
 

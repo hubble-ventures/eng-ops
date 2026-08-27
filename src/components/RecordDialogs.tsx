@@ -1,7 +1,7 @@
 import * as React from 'react'
-import { useDelete } from '@refinedev/core'
-import { useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { toast } from 'sonner'
 import { ExternalLink, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 
 import { RecordForm } from '~/components/RecordForm'
@@ -21,8 +21,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { deleteEntityRow } from '~/lib/functions'
+import { pkFromRow } from '~/lib/pk'
 import { entityKeys } from '~/lib/queries'
-import { encodeRowId, pkFromRow } from '~/lib/refine/rowKey'
 import type { JsonScalar, TableMeta } from '~/lib/types'
 
 function stop(e: React.SyntheticEvent) {
@@ -98,28 +99,31 @@ export function DeleteRowButton({
   const [open, setOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [isPending, setIsPending] = React.useState(false)
-  const { mutate: del } = useDelete()
   const queryClient = useQueryClient()
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      deleteEntityRow({
+        data: { table: meta.id, pk: pkFromRow(meta.columns, row) },
+      }),
+  })
 
   function confirmDelete() {
     setError(null)
     setIsPending(true)
-    del(
-      { resource: meta.id, id: encodeRowId(pkFromRow(meta.columns, row)) },
-      {
-        onSuccess: () => {
-          setIsPending(false)
-          void queryClient.invalidateQueries({ queryKey: entityKeys.rows(meta.id) })
-          void queryClient.invalidateQueries({ queryKey: entityKeys.list() })
-          setOpen(false)
-          onDeleted?.()
-        },
-        onError: (err) => {
-          setIsPending(false)
-          setError(err instanceof Error ? err.message : String(err))
-        },
+    deleteMutation.mutate(undefined, {
+      onSuccess: () => {
+        setIsPending(false)
+        void queryClient.invalidateQueries({ queryKey: entityKeys.rows(meta.id) })
+        void queryClient.invalidateQueries({ queryKey: entityKeys.list() })
+        toast.success('Row deleted')
+        setOpen(false)
+        onDeleted?.()
       },
-    )
+      onError: (err) => {
+        setIsPending(false)
+        setError(err instanceof Error ? err.message : String(err))
+      },
+    })
   }
 
   return (
@@ -183,8 +187,13 @@ export function RowActionsMenu({
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [isPending, setIsPending] = React.useState(false)
-  const { mutate: del } = useDelete()
   const queryClient = useQueryClient()
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      deleteEntityRow({
+        data: { table: meta.id, pk: pkFromRow(meta.columns, row) },
+      }),
+  })
 
   const pkFirst = meta.columns.find((c) => c.isPrimaryKey)?.name
   const pkValue = pkFirst ? row[pkFirst] : undefined
@@ -194,21 +203,19 @@ export function RowActionsMenu({
   function confirmDelete() {
     setError(null)
     setIsPending(true)
-    del(
-      { resource: meta.id, id: encodeRowId(pkFromRow(meta.columns, row)) },
-      {
-        onSuccess: () => {
-          setIsPending(false)
-          void queryClient.invalidateQueries({ queryKey: entityKeys.rows(meta.id) })
-          void queryClient.invalidateQueries({ queryKey: entityKeys.list() })
-          setDeleteOpen(false)
-        },
-        onError: (err) => {
-          setIsPending(false)
-          setError(err instanceof Error ? err.message : String(err))
-        },
+    deleteMutation.mutate(undefined, {
+      onSuccess: () => {
+        setIsPending(false)
+        void queryClient.invalidateQueries({ queryKey: entityKeys.rows(meta.id) })
+        void queryClient.invalidateQueries({ queryKey: entityKeys.list() })
+        toast.success('Row deleted')
+        setDeleteOpen(false)
       },
-    )
+      onError: (err) => {
+        setIsPending(false)
+        setError(err instanceof Error ? err.message : String(err))
+      },
+    })
   }
 
   if (!canOpen && !canWrite) return null
