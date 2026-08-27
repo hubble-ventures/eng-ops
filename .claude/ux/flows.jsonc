@@ -25,10 +25,11 @@
     "themes": ["light", "dark"]
   },
 
-  // A pk known to exist can go stale if the DB is reseeded. Prefer steps that
-  // navigate by clicking a row's "view" link over hardcoded ids. Where a direct
-  // deep link is needed, the skill refreshes these before the run.
-  "sampleTable": "compete.competitions",
+  // EXAMPLE table id — set this to a real schema-qualified table in your own
+  // database before running (e.g. "public.users"). The flows below deep-link to
+  // it; the skill refreshes any hardcoded pk before the run, and steps prefer
+  // clicking a row over hardcoded ids so they survive a reseed.
+  "sampleTable": "public.users",
 
   "flows": [
     {
@@ -46,7 +47,7 @@
     {
       "id": "entity-list",
       "name": "Entity list — table, sort, search, columns, pagination",
-      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "path": "/entities/public.users?page=1&pageSize=50",
       "steps": [
         "Load the page; observe the toolbar (Search rows box, density 'Compact' toggle, 'Columns' dropdown), pagination footer, and data table.",
         "Confirm the wide table scrolls inside its own container and the PAGE body does not scroll horizontally.",
@@ -61,11 +62,11 @@
       "id": "record-overview",
       "name": "Record overview — links, record, related, rich cells",
       // Reached by drilling in so it works regardless of current data.
-      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "path": "/entities/public.users?page=1&pageSize=50",
       "steps": [
         "From the list, click a row (the whole row is clickable — there is no separate 'view' link; the right-hand ⋯ menu is row actions, not navigation) to open its overview.",
         "Check the 'References' card (outbound FK badge pills), the 'Record' key/value table, and any 'Related entities' sections.",
-        "Verify rich cell rendering: timestamps readable, boolean pills, NULLs, and (open a jsonb-heavy record such as documents.signatures if reachable) that JSON is a scrollable pretty-printed block.",
+        "Verify rich cell rendering: timestamps readable, boolean pills, NULLs, and (open a record from a table with a jsonb column, if reachable) that JSON is a scrollable pretty-printed block.",
         "Check a long text value wraps / expands rather than blowing out the layout."
       ],
       "focus": ["visibility", "readability", "usability", "colors", "scaling", "accessibility"]
@@ -84,7 +85,7 @@
     {
       "id": "empty-results",
       "name": "Empty results — filter that matches nothing",
-      "path": "/entities/compete.competitions?page=1&pageSize=50",
+      "path": "/entities/public.users?page=1&pageSize=50",
       "steps": [
         "Search for a nonsense string like 'zzzqqq' that matches no rows.",
         "Confirm a clear empty state renders (not a bare table or a broken pager)."
