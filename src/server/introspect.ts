@@ -4,6 +4,8 @@ import {
   tableDisplayColumn,
   type ColumnOrderStrategy,
 } from './config'
+import type { Pool } from 'pg'
+
 import { getPool } from './db'
 import { env } from './env'
 
@@ -27,19 +29,57 @@ export interface ColumnMeta {
   enumValues: Array<string> | null
 }
 
+/** ON DELETE action of a foreign key, as pg_constraint.confdeltype spells it. */
+export type FkAction = 'no action' | 'restrict' | 'cascade' | 'set null' | 'set default'
+
 export interface ForeignKeyMeta {
   constraintName: string
+  /** first constrained column — the whole key is in {@link columns} */
   column: string
+  /** every constrained column, in key order (length > 1 for a composite FK) */
+  columns: Array<string>
   /** schema.table of the referenced entity */
   referencedTable: string
+  /** first referenced column — the whole key is in {@link referencedColumns} */
   referencedColumn: string
+  /** every referenced column, in the same order as {@link columns} */
+  referencedColumns: Array<string>
+  onDelete: FkAction
 }
 
 export interface InboundRefMeta {
   /** schema.table of the entity that has the FK pointing at this table */
   fromTable: string
+  /** first constrained column — the whole key is in {@link fromColumns} */
   fromColumn: string
+  /** every constrained column on the referencing table, in key order */
+  fromColumns: Array<string>
+  /** the columns of *this* table the FK points at, in the same order */
+  toColumns: Array<string>
   constraintName: string
+  onDelete: FkAction
+}
+
+/**
+ * A unique index, as the merge engine needs to read it.
+ *
+ * `columns` holds key columns only — an index's INCLUDE payload does not
+ * participate in uniqueness, so it must not be treated as part of the scope.
+ */
+export interface UniqueIndexMeta {
+  name: string
+  /** key column names, in index order; empty for a pure expression index */
+  columns: Array<string>
+  /** `pg_get_expr(indpred, indrelid)` for a partial index, else null */
+  predicate: string | null
+  /**
+   * NULLS NOT DISTINCT (PG15+). Postgres treats NULLs as distinct by default,
+   * so equality against this index is `=` unless this is set.
+   */
+  nullsNotDistinct: boolean
+  /** the key includes an expression (indkey contains 0) — not comparable by column */
+  hasExpressions: boolean
+  isPrimary: boolean
 }
 
 /** What kind of relation this entity is. */
@@ -56,6 +96,8 @@ export interface TableMeta {
   foreignKeys: Array<ForeignKeyMeta>
   /** inbound references from other tables */
   referencedBy: Array<InboundRefMeta>
+  /** unique indexes (including the primary key's) on this relation */
+  uniqueIndexes: Array<UniqueIndexMeta>
 }
 
 let cache: { tables: Array<TableMeta> } | null = null
@@ -165,6 +207,85 @@ function orderColumns(
 
 // ---- introspection --------------------------------------------------------
 
+function fkAction(confdeltype: string): FkAction {
+  switch (confdeltype) {
+    case 'c':
+      return 'cascade'
+    case 'n':
+      return 'set null'
+    case 'd':
+      return 'set default'
+    case 'r':
+      return 'restrict'
+    default:
+      return 'no action'
+  }
+}
+
+interface UniqueIndexRow {
+  table_schema: string
+  table_name: string
+  index_name: string
+  columns: Array<string> | null
+  predicate: string | null
+  nulls_not_distinct: boolean
+  has_expressions: boolean
+  is_primary: boolean
+}
+
+/**
+ * Unique indexes for every introspected relation.
+ *
+ * Only the first `indnkeyatts` entries of `indkey` are key columns; anything
+ * after them is an INCLUDE payload that plays no part in uniqueness. A 0 in the
+ * key means an expression, which cannot be compared column-by-column — callers
+ * are expected to refuse rather than merge past a rule they cannot evaluate.
+ *
+ * `indnullsnotdistinct` only exists from PG15, so it is probed and defaulted to
+ * false on older servers (where NULLs are always distinct anyway).
+ */
+async function queryUniqueIndexes(
+  pool: Pool,
+  relWhere: string,
+  relParams: Array<unknown>,
+): Promise<Array<UniqueIndexRow>> {
+  const versionRes = await pool.query<{ v: string }>(
+    `SELECT current_setting('server_version_num') AS v`,
+  )
+  const supportsNullsNotDistinct = Number(versionRes.rows[0]?.v ?? '0') >= 150000
+  const nullsNotDistinct = supportsNullsNotDistinct
+    ? 'i.indnullsnotdistinct'
+    : 'false'
+
+  const res = await pool.query<UniqueIndexRow>(
+    `SELECT n.nspname  AS table_schema,
+            c.relname  AS table_name,
+            ic.relname AS index_name,
+            i.indisprimary AS is_primary,
+            ${nullsNotDistinct} AS nulls_not_distinct,
+            pg_get_expr(i.indpred, i.indrelid) AS predicate,
+            EXISTS (
+              SELECT 1 FROM unnest(i.indkey::int[]) WITH ORDINALITY AS k(attnum, ord)
+               WHERE k.ord <= i.indnkeyatts AND k.attnum = 0
+            ) AS has_expressions,
+            (SELECT array_agg(a.attname::text ORDER BY k.ord)
+               FROM unnest(i.indkey::int[]) WITH ORDINALITY AS k(attnum, ord)
+               JOIN pg_attribute a
+                 ON a.attrelid = i.indrelid AND a.attnum = k.attnum
+              WHERE k.ord <= i.indnkeyatts) AS columns
+       FROM pg_index i
+       JOIN pg_class ic ON ic.oid = i.indexrelid
+       JOIN pg_class c  ON c.oid = i.indrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE i.indisunique
+        AND i.indislive
+        AND ${relWhere}
+      ORDER BY n.nspname, c.relname, ic.relname`,
+    relParams,
+  )
+  return res.rows
+}
+
 export async function introspectSchema(): Promise<{
   tables: Array<TableMeta>
 }> {
@@ -268,33 +389,48 @@ export async function introspectSchema(): Promise<{
     constraintParams,
   )
 
+  // Foreign keys come from pg_catalog rather than information_schema: joining
+  // key_column_usage to constraint_column_usage pairs every constrained column
+  // with every referenced one, which is a cross product for a composite key.
+  // unnest(...) WITH ORDINALITY keeps the two sides aligned. The ::text casts
+  // matter — array_agg over `name` yields name[], which the driver cannot parse
+  // and hands back as the raw string "{a,b}".
+  const fkWhere = allowlist
+    ? `n.nspname = ANY($1) AND fn.nspname = ANY($1)`
+    : `n.nspname NOT IN ${SYSTEM_SCHEMAS} AND fn.nspname NOT IN ${SYSTEM_SCHEMAS}`
+
   const fkRes = await pool.query<{
     constraint_name: string
     table_schema: string
     table_name: string
-    column_name: string
+    columns: Array<string>
     foreign_table_schema: string
     foreign_table_name: string
-    foreign_column_name: string
+    ref_columns: Array<string>
+    on_delete: string
   }>(
-    `SELECT
-        tc.constraint_name,
-        kcu.table_schema,
-        kcu.table_name,
-        kcu.column_name,
-        ccu.table_schema  AS foreign_table_schema,
-        ccu.table_name    AS foreign_table_name,
-        ccu.column_name   AS foreign_column_name
-       FROM information_schema.table_constraints tc
-       JOIN information_schema.key_column_usage kcu
-         ON tc.constraint_name = kcu.constraint_name
-        AND tc.constraint_schema = kcu.constraint_schema
-       JOIN information_schema.constraint_column_usage ccu
-         ON ccu.constraint_name = tc.constraint_name
-        AND ccu.constraint_schema = tc.constraint_schema
-      WHERE tc.constraint_type = 'FOREIGN KEY'
-        ${fkSchemaFilter}
-      ORDER BY kcu.table_schema, kcu.table_name, kcu.column_name`,
+    `SELECT con.conname                AS constraint_name,
+            n.nspname                  AS table_schema,
+            c.relname                  AS table_name,
+            fn.nspname                 AS foreign_table_schema,
+            fc.relname                 AS foreign_table_name,
+            con.confdeltype            AS on_delete,
+            (SELECT array_agg(a.attname::text ORDER BY k.ord)
+               FROM unnest(con.conkey) WITH ORDINALITY AS k(attnum, ord)
+               JOIN pg_attribute a
+                 ON a.attrelid = con.conrelid AND a.attnum = k.attnum) AS columns,
+            (SELECT array_agg(a.attname::text ORDER BY k.ord)
+               FROM unnest(con.confkey) WITH ORDINALITY AS k(attnum, ord)
+               JOIN pg_attribute a
+                 ON a.attrelid = con.confrelid AND a.attnum = k.attnum) AS ref_columns
+       FROM pg_constraint con
+       JOIN pg_class c ON c.oid = con.conrelid
+       JOIN pg_namespace n ON n.oid = c.relnamespace
+       JOIN pg_class fc ON fc.oid = con.confrelid
+       JOIN pg_namespace fn ON fn.oid = fc.relnamespace
+      WHERE con.contype = 'f'
+        AND ${fkWhere}
+      ORDER BY n.nspname, c.relname, con.conname`,
     constraintParams,
   )
 
@@ -313,6 +449,7 @@ export async function introspectSchema(): Promise<{
       columns: [],
       foreignKeys: [],
       referencedBy: [],
+      uniqueIndexes: [],
     })
   }
 
@@ -340,21 +477,42 @@ export async function introspectSchema(): Promise<{
     const toId = tableId(fk.foreign_table_schema, fk.foreign_table_name)
     const from = tables.get(fromId)
     const to = tables.get(toId)
+    const columns = fk.columns ?? []
+    const refColumns = fk.ref_columns ?? []
+    if (columns.length === 0 || refColumns.length !== columns.length) continue
+    const onDelete = fkAction(fk.on_delete)
     if (from) {
       from.foreignKeys.push({
         constraintName: fk.constraint_name,
-        column: fk.column_name,
+        column: columns[0]!,
+        columns,
         referencedTable: toId,
-        referencedColumn: fk.foreign_column_name,
+        referencedColumn: refColumns[0]!,
+        referencedColumns: refColumns,
+        onDelete,
       })
     }
     if (to) {
       to.referencedBy.push({
         fromTable: fromId,
-        fromColumn: fk.column_name,
+        fromColumn: columns[0]!,
+        fromColumns: columns,
+        toColumns: refColumns,
         constraintName: fk.constraint_name,
+        onDelete,
       })
     }
+  }
+
+  for (const idx of await queryUniqueIndexes(pool, relWhere, relParams)) {
+    tables.get(tableId(idx.table_schema, idx.table_name))?.uniqueIndexes.push({
+      name: idx.index_name,
+      columns: idx.columns ?? [],
+      predicate: idx.predicate,
+      nullsNotDistinct: idx.nulls_not_distinct,
+      hasExpressions: idx.has_expressions,
+      isPrimary: idx.is_primary,
+    })
   }
 
   // Apply column ordering once, after PKs and FKs are known.

@@ -3,10 +3,30 @@
 
   "columnOrder": "smart",
 
+  "merge": {
+    "$comment": "Defaults for the row-merge engine. Primary-key, identity and generated columns are already excluded from the 'do these rows say the same thing?' comparison via introspection; ignoredColumns is for bookkeeping columns only a human can recognise.",
+    "ignoredColumns": ["created_at", "updated_at"],
+    "tombstoneColumns": ["deleted_at", "archived_at", "discarded_at"],
+    "moveWarningThreshold": 10000
+  },
+
   "tables": {
     "public.users": {
       "$comment": "Pin these columns first, in this order; every other column follows in the database's natural order.",
-      "columnOrder": ["id", "email", "display_name", "created_at"]
+      "columnOrder": ["id", "email", "display_name", "created_at"],
+
+      "merge": {
+        "$comment": "References into public.users that pg_catalog cannot see, because no foreign key declares them. Without these the merge reassigns what it can find, sweeps clean, retires the row, and leaves the rest dangling with no error. `guard` is raw SQL narrowing a polymorphic column to the rows that really point at a user — operator config, trusted like DATABASE_URL.",
+        "extraEdges": [
+          {
+            "table": "public.audit_log",
+            "column": "owner_id",
+            "guard": "owner_type = 'user'"
+          }
+        ],
+        "$comment2": "Stamp this instead of deleting the merged-away row (overrides merge.tombstoneColumns for this table).",
+        "tombstoneColumn": "deleted_at"
+      }
     }
   }
 }

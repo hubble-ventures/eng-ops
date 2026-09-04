@@ -1,7 +1,22 @@
 import type { TableKind, TableMeta } from '~/server/introspect'
 
 export type { TableMeta, TableKind }
-export type { ColumnMeta, ForeignKeyMeta, InboundRefMeta } from '~/server/introspect'
+export type {
+  ColumnMeta,
+  ForeignKeyMeta,
+  InboundRefMeta,
+  UniqueIndexMeta,
+  FkAction,
+} from '~/server/introspect'
+export type {
+  MergeBlock,
+  MergeDuplicate,
+  MergeMove,
+  MergePlan,
+  MergeResult,
+  MergeRowRef,
+  MergeWarning,
+} from '~/server/merge'
 
 /** A JSON-safe scalar as it crosses the server-function / hydration boundary. */
 export type JsonScalar = string | number | boolean | null

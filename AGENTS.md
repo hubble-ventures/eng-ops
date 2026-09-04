@@ -32,7 +32,13 @@ npm run dev              # http://localhost:3000
   `docker-compose.yml` / `npm run seed`) with `ENGOPS_WRITE=1`. Do not enable
   writes against production.
 - `.env` is git-ignored and must stay that way. Never commit connection strings.
-- Writes are off unless `ENGOPS_WRITE` is set; keep that default.
+- Writes are off unless `ENGOPS_WRITE` is set; keep that default. Row merge
+  (`src/server/merge.ts`) is a write and sits behind the same flag.
+- The merge engine can only see *declared* constraints. Undeclared references
+  (polymorphic `owner_id`, columns that never got a foreign key) are invisible
+  to it and must be declared as `merge.extraEdges` in `engops.config.json`.
+  Never quietly drop the sweep in `mergeRows`: many FKs are `ON DELETE CASCADE`,
+  so a missed reference is silent data loss rather than an error.
 
 ## Driving the UI (Argent)
 

@@ -36,6 +36,9 @@ Built with **TanStack Start** (SSR + server functions), **TanStack Router**,
 - **Optional CRUD** — create/update/delete with auto-generated forms (enum
   selects, checkboxes, typed inputs, defaults honored, required validation),
   **off by default** (see [Enabling writes](#enabling-writes)).
+- **Row merge** — reassign everything that references one row onto another and
+  retire the leftover, driven entirely by `pg_catalog`; also **off by default**
+  (see [Merging rows](#merging-rows)).
 - **Dark mode**, responsive layout (forms become bottom-sheets on mobile).
 - **Works with managed Postgres** — TLS options for Neon / RDS / Supabase.
 
@@ -104,6 +107,53 @@ transaction and roll back unless exactly one row is affected. Generated/identity
 columns are never written. The write UI (New row / Edit / Delete) is hidden when
 `ENGOPS_WRITE` is off and for non-table relations (views).
 
+### Merging rows
+
+Two rows of the same table often turn out to be the same thing: a user who
+signed up twice, a tag created under two slugs. **Merge** (on any record's
+detail page, when writes are enabled) reassigns every row that references the
+one you are looking at onto a row you pick, then retires the leftover — all in
+one transaction, and only after showing you exactly what it would do.
+
+Nothing about it is table-specific. The reference graph comes from
+`pg_constraint`, the uniqueness rules from `pg_index`, and "do these two rows
+say the same thing?" from column metadata — so it works on any schema.
+
+**What it does**
+
+1. **Discovers** every foreign key pointing at the table.
+2. **Classifies collisions.** Where a unique index keys on a referencing column,
+   both rows can hold a row in one scope and only one may survive. Rows that
+   agree on every meaningful column are an exact duplicate and the leftover's
+   copy is dropped; rows that disagree **block** the merge, naming the columns
+   and linking straight to the rows to fix. Nothing is auto-resolved.
+   Primary-key, identity and generated columns are excluded from that comparison
+   from introspection; the remaining exclusions (`created_at`, `updated_at`) are
+   configurable.
+3. **Reassigns** what is left.
+4. **Sweeps, then retires.** Before touching the merged-away row it asserts that
+   *nothing anywhere* still references it, and rolls back if anything does. This
+   is the important one: foreign keys are frequently `ON DELETE CASCADE`, so a
+   reference the tool missed would be silently destroyed rather than raise. The
+   row is then stamped with a soft-delete column if the table has one
+   (`deleted_at` by default, configurable), and deleted outright — and returned
+   in full — if it does not.
+
+It also refuses, rather than guessing, when it meets a composite foreign key, a
+unique expression index, a unique index keyed on two referencing columns at
+once, or a self-reference that would leave the surviving row pointing at itself.
+
+> [!IMPORTANT]
+> **A merge is only as safe as the foreign keys actually declared.** A column
+> that references the table without a constraint — a polymorphic `owner_id`, or
+> one that simply never got one — is invisible to `pg_catalog`: it will not be
+> reassigned, the sweep will not see it, and it will be left dangling with no
+> error. Declare those edges in `engops.config.json` (below). The merge dialog
+> says as much, every time.
+>
+> Triggers on the reassigned tables fire as part of the merge, and this tool
+> cannot know what they do; the plan lists them.
+
 ### Config file (`engops.config.json`)
 
 Optional per-deployment tuning — see [`engops.config.example.json`](engops.config.example.json):
@@ -111,14 +161,29 @@ Optional per-deployment tuning — see [`engops.config.example.json`](engops.con
 ```jsonc
 {
   "columnOrder": "smart",              // global default strategy
+  "merge": {
+    "ignoredColumns": ["created_at", "updated_at"],   // don't count as "information"
+    "tombstoneColumns": ["deleted_at", "archived_at"] // stamp instead of deleting
+  },
   "tables": {
     "public.users": {
       "columnOrder": ["id", "email", "name"],  // pin these first
-      "displayColumn": "email"                  // label used when this table is FK-referenced
+      "displayColumn": "email",                 // label used when this table is FK-referenced
+      "merge": {
+        // References with no foreign key to find them by. `guard` narrows a
+        // polymorphic column to the rows that actually point at this table.
+        "extraEdges": [
+          { "table": "public.audit_log", "column": "owner_id", "guard": "owner_type = 'user'" }
+        ]
+      }
     }
   }
 }
 ```
+
+`guard` is raw SQL spliced into the edge's `WHERE` clause. It is operator
+config, trusted at the same level as `DATABASE_URL` — it is not, and cannot be,
+validated as safe input.
 
 ---
 
@@ -133,6 +198,7 @@ queries**. Nothing is hardcoded per table.
 | Connection pool + TLS | `src/server/db.ts` |
 | Introspection (`pg_catalog`) | `src/server/introspect.ts` |
 | Read queries + write ops + FK labels | `src/server/queries.ts` |
+| Row-merge planner + executor | `src/server/merge.ts` |
 | Pure SQL builders (insert/update/delete) | `src/server/sql.ts` |
 | Deployment config loader | `src/server/config.ts` |
 | Server functions (RPC, zod-validated) | `src/lib/functions.ts` |
@@ -140,6 +206,7 @@ queries**. Nothing is hardcoded per table.
 | Refine data provider / notifications / row id | `src/lib/refine/*` |
 | Data grid | `src/components/DataTable.tsx` |
 | CRUD forms + dialogs | `src/components/RecordForm.tsx`, `RecordDialogs.tsx` |
+| Merge dialog | `src/components/MergeRecordDialog.tsx` |
 | shadcn/ui primitives | `src/components/ui/*` |
 | Routes | `src/routes/*` |
 
