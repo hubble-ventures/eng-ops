@@ -12,3 +12,6 @@ dist
 
 # local eng-ops config (keep the .example committed)
 engops.config.json
+
+# per-checkout port claim (scripts/portlock.mjs)
+.worktree

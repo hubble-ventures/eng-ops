@@ -1,23 +1,29 @@
 # Optional local Postgres for trying eng-ops. Not required if you already have
 # a database — just point DATABASE_URL at yours instead.
 #
-#   docker compose up -d        # start Postgres on localhost:5432
+#   npm run db:up               # start Postgres on this checkout's claimed port
 #   npm run seed                # load the demo schema (users/posts/comments)
-#   npm run dev                 # http://localhost:3000
+#   npm run dev                 # serve the app on its claimed port
 #
-# Matches the default DATABASE_URL in .env.example:
-#   postgres://postgres:postgres@localhost:5432/postgres
+# The port and the matching DATABASE_URL are allocated per checkout by
+# scripts/portlock.mjs and written to .worktree/ports.env; `npm run ports`
+# prints them. The npm scripts above pass that file's values through, so prefer
+# them over a bare `docker compose`.
 
 services:
   db:
     image: postgres:17
-    container_name: eng-ops-db
+    # No container_name: it is machine-global, so it would collide between
+    # worktrees. COMPOSE_PROJECT_NAME (from .worktree/ports.env) already gives
+    # each checkout its own container and volume names.
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     ports:
-      - '5432:5432'
+      # Claimed by scripts/portlock.mjs. The default is only for a bare
+      # `docker compose up` run outside the npm scripts.
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - eng-ops-pgdata:/var/lib/postgresql/data
     healthcheck:
