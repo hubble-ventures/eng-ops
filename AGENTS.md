@@ -13,11 +13,17 @@ introspection; row data from live queries. Nothing is hardcoded per table.
 ```bash
 npm install
 npm run typecheck        # must pass before you consider a change done
-npm run dev              # http://localhost:3000
+npm run dev              # prints the URL; `npm run ports` reprints it
 ```
 
-- `DATABASE_URL` in `.env` is required (git-ignored). For a disposable DB:
-  `docker compose up -d && npm run seed`.
+- **Nothing listens on a fixed port.** `scripts/portlock.mjs` claims a stable
+  block per checkout (`.worktree/ports.env`, git-ignored) so parallel worktrees
+  do not collide. Read the port from there or from `npm run ports` — never
+  assume 3000 or 5432, and never add a hardcoded port back.
+- `DATABASE_URL` in `.env` is required unless you use the throwaway stack:
+  `npm run db:up && npm run seed` publishes Postgres on the claimed port and
+  supplies the matching `DATABASE_URL`. Anything in the real environment or
+  `.env` wins over it.
 - The introspection cache is process-lifetime — **restart the dev server after
   a schema change.**
 - Prefer verifying real behavior over asserting it: drive the running app and
@@ -28,9 +34,9 @@ npm run dev              # http://localhost:3000
 - **Never run destructive SQL against a database you don't own.** Assume the
   configured `DATABASE_URL` may point at real data with real PII — keep it out
   of commits, screenshots, and logs.
-- **To test writes (create/update/delete), use a throwaway database** (see
-  `docker-compose.yml` / `npm run seed`) with `ENGOPS_WRITE=1`. Do not enable
-  writes against production.
+- **To test writes (create/update/delete), including a row merge, use a
+  throwaway database**: `npm run db:up && npm run seed`, with `ENGOPS_WRITE=1`.
+  Do not enable writes against production.
 - `.env` is git-ignored and must stay that way. Never commit connection strings.
 - Writes are off unless `ENGOPS_WRITE` is set; keep that default. Row merge
   (`src/server/merge.ts`) is a write and sits behind the same flag.
@@ -46,9 +52,9 @@ Argent (`@swmansion/argent`) is a dev dependency; its MCP server is configured i
 `.mcp.json` (loads on editor restart) and its CLI works immediately:
 
 ```bash
-# start Chrome with CDP first, e.g.:
+# start Chrome with CDP first, pointing at the port `npm run ports` reports:
 # "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-#   --remote-debugging-port=9222 --headless=new "http://localhost:3000"
+#   --remote-debugging-port=9222 --headless=new "http://localhost:$WEB_PORT"
 npx argent run list-devices                     # find the chromium id
 npx argent run screenshot --udid chromium-cdp-9222
 npx argent run gesture-tap --udid chromium-cdp-9222 --x 0.5 --y 0.3
