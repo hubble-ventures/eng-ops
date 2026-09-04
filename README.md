@@ -48,8 +48,12 @@ Requires **Node ≥ 20.19** and a reachable Postgres.
 ```bash
 npm install
 cp .env.example .env        # then edit DATABASE_URL
-npm run dev                 # http://localhost:3000
+npm run dev                 # prints the URL it picked
+npm run ports               # …or ask for it any time
 ```
+
+The dev server does not use a fixed port. Each checkout claims its own stable
+port block so parallel worktrees never collide — see [Ports](#ports).
 
 ### Don't have a database handy?
 
@@ -57,14 +61,19 @@ Spin up a throwaway Postgres and load a small demo schema
 (`users` / `posts` / `comments`):
 
 ```bash
-docker compose up -d        # Postgres on localhost:5432
+npm run db:up               # Postgres on this checkout's claimed port
 npm run seed                # load the demo schema
-npm run dev                 # http://localhost:3000
+npm run dev                 # serve the app
 ```
 
-The default `DATABASE_URL` in `.env.example`
-(`postgres://postgres:postgres@localhost:5432/postgres`) matches the compose
-file, so no editing is needed for the demo.
+No `DATABASE_URL` editing is needed for the demo: `npm run db:up` publishes
+Postgres on the port this checkout claimed, and the matching connection string
+is written to `.worktree/ports.env`, which the app falls back to. A
+`DATABASE_URL` in your real environment or in `.env` always wins over it —
+pointing eng-ops at your own database stays the normal case.
+
+Use `npm run db:down` to stop it, and `npm run ports:release` when you are done
+with a checkout entirely.
 
 > `npm run seed` runs DDL + DML (drops/recreates `users`/`posts`/`comments`).
 > Only run it against a database you're happy to modify. To isolate it, create a
@@ -89,6 +98,59 @@ Only `DATABASE_URL` is required.
 
 The introspected schema is cached for the process lifetime — **restart the dev
 server after changing your database schema.**
+
+### Ports
+
+Nothing here listens on a fixed port. `scripts/portlock.mjs` claims a small
+block per checkout, recorded in a machine-wide registry and written to
+`.worktree/ports.env` (git-ignored):
+
+| | |
+| --- | --- |
+| `POSTGRES_PORT` | `PORTBASE + 0` — the docker-compose Postgres |
+| `WEB_PORT` | `PORTBASE + 1` — the Vite dev server |
+| `DATABASE_URL` | the connection string for that Postgres |
+| `COMPOSE_PROJECT_NAME` | so each checkout gets its own container and volume |
+
+The claim is **stable**: the same directory gets the same block every time, so a
+URL in your notes keeps working across restarts. That is the point — scanning
+for the first free port means landing on 3000 one day and 3002 the next. Vite is
+started with `strictPort`, so a taken port is a loud failure rather than a
+silent drift. A block is released when its directory is deleted, or on
+`npm run ports:release`.
+
+Ports are *named* in one place (`renderEnv` in `scripts/lib/portlock.mjs`)
+rather than recomputed as `PORTBASE + n` at each call site.
+
+#### Named URLs with portless (optional)
+
+[`portless`](https://github.com/vercel-labs/portless) replaces the port number
+with a name. It is **opt-in and never required** — install it and `npm run dev`
+picks it up; don't, and everything works exactly the same on the port.
+
+```bash
+npm i -g portless
+portless trust                 # one-time: trust the local CA (asks for sudo)
+npm run dev                    # -> https://eng-ops.localhost
+```
+
+In a linked git worktree `portless run` prepends the branch, so each worktree
+gets its own URL (`https://<branch>.eng-ops.localhost`) with no extra config.
+
+The two tools solve different halves and are wired to agree rather than compete:
+**portlock decides the port, portless gives that port a name.** The seam is
+`--app-port`, which tells portless to proxy the port already claimed instead of
+assigning its own random one from 4000-4999. Without that they would fight —
+which is exactly the objection that kept portless out of the paddles-up stack
+(ADR 0034 D6). portlock also stays the authority for Postgres, which portless
+cannot cover at all: the proxy is HTTP-only.
+
+`PORTLESS=0 npm run dev` bypasses it for one run.
+
+> [!NOTE]
+> `portless trust` writes to the system trust store, and its default proxy
+> listens on 443, which needs `sudo`. Run those yourself; `portless proxy start
+> -p 1355` avoids the privileged port if you would rather not.
 
 ### Enabling writes
 
@@ -135,6 +197,8 @@ queries**. Nothing is hardcoded per table.
 | Read queries + write ops + FK labels | `src/server/queries.ts` |
 | Pure SQL builders (insert/update/delete) | `src/server/sql.ts` |
 | Deployment config loader | `src/server/config.ts` |
+| Port allocation (portlock) | `scripts/lib/portlock.mjs`, `scripts/portlock.mjs` |
+| Dev launcher (portlock + portless) | `scripts/dev.mjs` |
 | Server functions (RPC, zod-validated) | `src/lib/functions.ts` |
 | Query keys + `queryOptions` + label helpers | `src/lib/queries.ts` |
 | Refine data provider / notifications / row id | `src/lib/refine/*` |
@@ -146,11 +210,15 @@ queries**. Nothing is hardcoded per table.
 ### Scripts
 
 ```bash
-npm run dev        # dev server (HMR) on :3000
-npm run build      # production build
-npm run start      # run the production build
-npm run typecheck  # tsc --noEmit
-npm run seed       # load the demo schema into $DATABASE_URL
+npm run dev            # dev server (HMR) on this checkout's claimed port
+npm run build          # production build
+npm run start          # run the production build
+npm run typecheck      # tsc --noEmit
+npm run seed           # load the demo schema into $DATABASE_URL
+npm run db:up          # start the throwaway Postgres
+npm run db:down        # stop it
+npm run ports          # show this checkout's claimed ports
+npm run ports:release  # give the port block back
 ```
 
 ---
