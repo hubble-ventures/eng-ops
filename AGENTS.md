@@ -45,6 +45,10 @@ npm run dev              # prints the URL; `npm run ports` reprints it
   to it and must be declared as `merge.extraEdges` in `engops.config.json`.
   Never quietly drop the sweep in `mergeRows`: many FKs are `ON DELETE CASCADE`,
   so a missed reference is silent data loss rather than an error.
+- `src/server/scan.ts` finds undeclared references by asking which columns hold
+  the value, never by pattern-matching column names. Do not "improve" it with a
+  name heuristic: for the one failure mode that fails open, a scanner that
+  produces false confidence is worse than no scanner.
 
 ## Driving the UI (Argent)
 

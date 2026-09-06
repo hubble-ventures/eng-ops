@@ -6,6 +6,7 @@ import type { EntityOverview, EntitySummary, JsonScalar, RowsPage, TableMeta } f
 import { env } from '~/server/env'
 import { introspectSchema, getTableMeta } from '~/server/introspect'
 import { mergeRows, previewMerge, type MergePlan, type MergeResult } from '~/server/merge'
+import { scanUndeclaredReferences, type ScanResult } from '~/server/scan'
 import {
   createRow,
   deleteRow,
@@ -228,5 +229,26 @@ export const mergeEntityRows = createServerFn({ method: 'POST' })
       keeperPk: data.keeperPk,
       loserPk: data.loserPk,
       expectedSignature: data.signature,
+    })
+  })
+
+/**
+ * Find columns holding this row's id that no constraint declares.
+ *
+ * POST rather than GET: it reads every candidate table, so it must be an
+ * explicit act, never something a prefetch or a cache warm can trigger.
+ */
+export const scanUndeclaredRefs = createServerFn({ method: 'POST' })
+  .validator(
+    z.object({
+      table: tableIdSchema,
+      pkValue: z.string().min(1).max(500),
+    }),
+  )
+  .handler(async ({ data }): Promise<ScanResult> => {
+    assertMergeEnabled()
+    return await scanUndeclaredReferences({
+      tableId: data.table,
+      pkValue: data.pkValue,
     })
   })

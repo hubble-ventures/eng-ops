@@ -2,6 +2,7 @@
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/seed.sql
 -- The schema (search_path) is selected by the caller; default below uses "demo".
 
+DROP TABLE IF EXISTS page_views CASCADE;
 DROP TABLE IF EXISTS audit_log CASCADE;
 DROP TABLE IF EXISTS api_keys CASCADE;
 DROP TABLE IF EXISTS membership_notes CASCADE;
@@ -109,6 +110,20 @@ CREATE TABLE audit_log (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- An undeclared reference, left undeclared on purpose. `viewer_id` holds a user
+-- id and has no foreign key and no entry in engops.config.json, so the merge
+-- engine cannot see it: a merge reassigns everything else, sweeps clean, retires
+-- the row, and leaves these rows pointing at an id that is gone. That is the one
+-- way the merge fails open, and it is what the undeclared-reference scan exists
+-- to find. `viewed_at` is a plain timestamp so the scan has a same-typed column
+-- to correctly ignore.
+CREATE TABLE page_views (
+  id        serial PRIMARY KEY,
+  viewer_id integer NOT NULL,
+  path      text NOT NULL,
+  viewed_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- ---------------------------------------------------------------------------
 -- Data. Users 4-7 exist to exercise the merge engine; see the map at the end.
 -- ---------------------------------------------------------------------------
@@ -191,6 +206,11 @@ INSERT INTO audit_log (owner_type, owner_id, action) VALUES
   -- Same id, different owner kind: the guard must keep this one put.
   ('team', 4, 'renamed');
 
+INSERT INTO page_views (viewer_id, path) VALUES
+  (4, '/dashboard'),
+  (4, '/settings'),
+  (1, '/dashboard');
+
 -- ---------------------------------------------------------------------------
 -- Merge fixtures, by scenario:
 --
@@ -206,4 +226,8 @@ INSERT INTO audit_log (owner_type, owner_id, action) VALUES
 --          managing herself.
 --   3 → 1  (tags) deletes outright — tags has no soft-delete column — after
 --          dropping the duplicate post_tags row for post 1 and moving post 4's.
+--
+-- And one trap: page_views.viewer_id references a user with no foreign key and
+-- no config entry, so no merge of a user will ever move it. Scanning user 4 for
+-- undeclared references is what surfaces it.
 -- ---------------------------------------------------------------------------

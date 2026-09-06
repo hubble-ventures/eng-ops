@@ -8,6 +8,7 @@ export type {
   UniqueIndexMeta,
   FkAction,
 } from '~/server/introspect'
+export type { ScanHit, ScanResult, ScanSkip } from '~/server/scan'
 export type {
   MergeBlock,
   MergeDuplicate,
