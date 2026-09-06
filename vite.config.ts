@@ -6,7 +6,17 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   server: {
-    port: 3000,
+    // The port is claimed by scripts/portlock.mjs and passed in as WEB_PORT, so
+    // parallel worktrees never fight over one number. `strictPort` makes a
+    // collision a loud failure instead of a silent drift to the next free port
+    // — a drifting port is exactly what the claim exists to prevent.
+    port: Number(process.env.WEB_PORT ?? 3000),
+    strictPort: true,
+    // portless serves the app as https://<name>.localhost (and, in a linked
+    // worktree, https://<branch>.<name>.localhost). Vite rejects Host headers
+    // it does not know, so the whole TLD is allowed rather than one generated
+    // name.
+    allowedHosts: ['.localhost'],
   },
   // Keep a single React instance across app + deps (hygiene). Note: the
   // "Invalid hook call" console noise on `npm run dev` originates from the

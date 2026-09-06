@@ -5,6 +5,7 @@ import { columnFilterSchema } from '~/lib/filters'
 import type { EntityOverview, EntitySummary, JsonScalar, RowsPage, TableMeta } from '~/lib/types'
 import { env } from '~/server/env'
 import { introspectSchema, getTableMeta } from '~/server/introspect'
+import { mergeRows, previewMerge, type MergePlan, type MergeResult } from '~/server/merge'
 import {
   createRow,
   deleteRow,
@@ -181,4 +182,51 @@ export const deleteEntityRow = createServerFn({ method: 'POST' })
   .validator(z.object({ table: tableIdSchema, pk: rowData }))
   .handler(async ({ data }): Promise<Record<string, JsonScalar>> => {
     return await deleteRow({ tableId: data.table, pk: data.pk })
+  })
+
+// ---- merge (gated by ENGOPS_WRITE) ---------------------------------------
+
+const mergeInput = z.object({
+  table: tableIdSchema,
+  /** primary-key value of the row that survives */
+  keeperPk: z.string().min(1).max(500),
+  /** primary-key value of the row that is merged away */
+  loserPk: z.string().min(1).max(500),
+})
+
+/**
+ * Merging is a write, and a destructive one, so both the preview and the
+ * execution are behind the same flag as create/update/delete. A read-only
+ * deployment does not offer the feature at all.
+ */
+function assertMergeEnabled(): void {
+  if (!env.ENGOPS_WRITE) {
+    throw new Error(
+      'Merging is disabled. Set ENGOPS_WRITE=1 (and use a role with write privileges) to enable it.',
+    )
+  }
+}
+
+export const getMergePlan = createServerFn({ method: 'GET' })
+  .validator(mergeInput)
+  .handler(async ({ data }): Promise<MergePlan> => {
+    assertMergeEnabled()
+    return await previewMerge(data.table, data.keeperPk, data.loserPk)
+  })
+
+export const mergeEntityRows = createServerFn({ method: 'POST' })
+  .validator(
+    mergeInput.extend({
+      /** the signature of the plan the operator actually confirmed */
+      signature: z.string().min(1).max(200_000),
+    }),
+  )
+  .handler(async ({ data }): Promise<MergeResult> => {
+    assertMergeEnabled()
+    return await mergeRows({
+      tableId: data.table,
+      keeperPk: data.keeperPk,
+      loserPk: data.loserPk,
+      expectedSignature: data.signature,
+    })
   })

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A generic, introspection-driven admin UI for any Postgres database. Browse and (optionally) edit your real tables — built on TanStack Start + shadcn/ui.",
+  "description": "A generic, introspection-driven admin UI for any Postgres database. Browse and (optionally) edit your real tables \u2014 built on TanStack Start + shadcn/ui.",
   "author": "Hubble Ventures",
   "license": "MIT",
   "repository": {
@@ -28,11 +28,15 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "node scripts/dev.mjs",
     "build": "vite build",
-    "start": "node .output/server/index.mjs",
+    "start": "node scripts/portlock.mjs --exec sh -c 'PORT=\"$WEB_PORT\" node .output/server/index.mjs'",
     "typecheck": "tsc --noEmit",
-    "seed": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/seed.sql",
+    "ports": "node scripts/portlock.mjs --print",
+    "ports:release": "node scripts/portlock.mjs --release",
+    "db:up": "node scripts/portlock.mjs --exec docker compose up -d --wait",
+    "db:down": "node scripts/portlock.mjs --exec docker compose down",
+    "seed": "node scripts/portlock.mjs --exec sh -c 'psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f scripts/seed.sql'",
     "postinstall": "patch-package"
   },
   "dependencies": {

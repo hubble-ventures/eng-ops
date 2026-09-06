@@ -5,6 +5,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { z } from 'zod'
 
 import { CellValue } from '~/components/CellValue'
+import { MergeRecordButton } from '~/components/MergeRecordDialog'
 import { DeleteRowButton, EditRowButton } from '~/components/RecordDialogs'
 import { Badge } from '~/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
@@ -115,6 +116,13 @@ function EntityOverviewPage() {
         {canWrite && (
           <div className="flex gap-2">
             <EditRowButton meta={overview.table} row={row} />
+            {overview.table.columns.some((c) => c.isPrimaryKey) && (
+              <MergeRecordButton
+                meta={overview.table}
+                row={row}
+                pkColumn={loaderData.pkColumn}
+              />
+            )}
             <DeleteRowButton
               meta={overview.table}
               row={row}
