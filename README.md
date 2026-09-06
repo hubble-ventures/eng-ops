@@ -205,6 +205,34 @@ It also refuses, rather than guessing, when it meets a composite foreign key, a
 unique expression index, a unique index keyed on two referencing columns at
 once, or a self-reference that would leave the surviving row pointing at itself.
 
+#### Finding undeclared references
+
+The merge dialog has a **Scan for undeclared references** button. It checks every
+table for columns that hold the id you are about to retire but have no foreign
+key and no config entry — the references a merge cannot see.
+
+It works on data, not on names. A name heuristic (`%_id` with no FK) is tempting
+and too weak to trust for this: the references it has to catch were called
+`user_ref`, `user`, `coach_id` and `owner_id` in the schema this was modelled on,
+and a name scan misses half of those while flagging every denormalised and
+external id in the database. For the one failure mode where the tool can be
+*confidently wrong*, a scanner producing false confidence is worse than none.
+
+Three exclusions do the precision work, and none is a guess:
+
+- columns already covered by a foreign key to the target, or by `extraEdges`;
+- columns with a foreign key to **anywhere** — a column constrained to another
+  table is not an undeclared reference to this one (this is what keeps
+  `team_id` out of every result);
+- primary keys — a serial `id` contains the value `4` in nearly every table.
+
+Candidates must also match the target's primary-key type exactly. What comes
+back is a row count per column, a confidence label (an integer id collides with
+ordinary numbers, so those are "check by hand"; a uuid match is close to
+conclusive), and a ready-to-paste `extraEdges` fragment. Each table is read once,
+under a `statement_timeout`, and any table that could not be scanned is
+**reported** rather than dropped.
+
 > [!IMPORTANT]
 > **A merge is only as safe as the foreign keys actually declared.** A column
 > that references the table without a constraint — a polymorphic `owner_id`, or
@@ -261,6 +289,7 @@ queries**. Nothing is hardcoded per table.
 | Introspection (`pg_catalog`) | `src/server/introspect.ts` |
 | Read queries + write ops + FK labels | `src/server/queries.ts` |
 | Row-merge planner + executor | `src/server/merge.ts` |
+| Undeclared-reference scan | `src/server/scan.ts` |
 | Pure SQL builders (insert/update/delete) | `src/server/sql.ts` |
 | Deployment config loader | `src/server/config.ts` |
 | Port allocation (portlock) | `scripts/lib/portlock.mjs`, `scripts/portlock.mjs` |

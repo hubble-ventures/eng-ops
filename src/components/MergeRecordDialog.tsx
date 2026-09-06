@@ -9,6 +9,7 @@ import {
   GitMerge,
   Info,
   Loader2,
+  Radar,
   Search,
   X,
 } from 'lucide-react'
@@ -24,9 +25,9 @@ import {
 } from '~/components/ui/dialog'
 import { Input } from '~/components/ui/input'
 import { Skeleton } from '~/components/ui/skeleton'
-import { mergeEntityRows } from '~/lib/functions'
+import { mergeEntityRows, scanUndeclaredRefs } from '~/lib/functions'
 import { entityKeys, entityRowsQuery, mergePlanQuery } from '~/lib/queries'
-import type { JsonScalar, MergePlan, TableMeta } from '~/lib/types'
+import type { JsonScalar, MergePlan, ScanResult, TableMeta } from '~/lib/types'
 
 /**
  * "Merge this record into another": the record on screen is the one being
@@ -218,6 +219,10 @@ function MergeBody({
             <PlanView plan={plan} pkColumn={pkColumn} />
           ) : null}
         </section>
+      )}
+
+      {plan && plan.blocks.length === 0 && (
+        <UndeclaredScan table={meta.id} pkValue={loserPk} />
       )}
 
       {plan && plan.blocks.length === 0 && (
@@ -465,6 +470,118 @@ function PlanTable({
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  )
+}
+
+/**
+ * On-demand hunt for references nothing declares.
+ *
+ * Deliberately a button rather than part of the plan: it reads every candidate
+ * table, which is far too expensive to do on every keystroke of a row picker.
+ * The operator asks for it, once, before committing.
+ */
+function UndeclaredScan({ table, pkValue }: { table: string; pkValue: string }) {
+  const scan = useMutation({
+    mutationFn: async (): Promise<ScanResult> =>
+      await scanUndeclaredRefs({ data: { table, pkValue } }),
+    onError: (error: Error) => toast.error(error.message),
+  })
+  const result = scan.data
+
+  return (
+    <div className="space-y-3 rounded-md border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">Undeclared references</p>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => scan.mutate()}
+          disabled={scan.isPending}
+        >
+          {scan.isPending ? <Loader2 className="animate-spin" /> : <Radar />}
+          {result ? 'Scan again' : 'Scan for undeclared references'}
+        </Button>
+      </div>
+
+      {!result && !scan.isPending && (
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Checks every table for columns that hold this row&apos;s id but have no
+          foreign key and no config entry — the references a merge cannot see, and
+          would leave pointing at a retired id. Reads each candidate table once,
+          so run it when you are ready to commit rather than while browsing.
+        </p>
+      )}
+
+      {result && (
+        <div className="space-y-2 text-sm">
+          <p className="text-muted-foreground text-xs">
+            Scanned {result.columnsScanned} column
+            {result.columnsScanned === 1 ? '' : 's'} across {result.tablesScanned}{' '}
+            table{result.tablesScanned === 1 ? '' : 's'} of type {result.pkType} in{' '}
+            {result.elapsedMs}ms. Columns with any foreign key, primary keys, and
+            views are not candidates.
+          </p>
+
+          {result.hits.length === 0 ? (
+            <p className="flex items-center gap-1.5">
+              <Check className="text-primary size-4" />
+              Nothing outside the declared edges holds this id.
+            </p>
+          ) : (
+            <>
+              <ul className="divide-y rounded-md border">
+                {result.hits.map((hit) => (
+                  <li
+                    key={`${hit.table}.${hit.column}`}
+                    className="flex flex-wrap items-baseline gap-2 px-3 py-1.5"
+                  >
+                    <code className="font-mono">
+                      {hit.table}.{hit.column}
+                    </code>
+                    <Badge
+                      variant={hit.confidence === 'strong' ? 'destructive' : 'secondary'}
+                    >
+                      {hit.confidence === 'strong' ? 'likely a reference' : 'check by hand'}
+                    </Badge>
+                    <span className="ml-auto tabular-nums">{hit.rows}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {result.hits.some((h) => h.confidence === 'weak')
+                  ? `${result.pkType} ids collide with ordinary numbers, so a match here is a candidate to eyeball, not proof. `
+                  : ''}
+                A column that really does reference {result.table} will not be moved
+                by this merge unless you declare it. Add it to
+                engops.config.json and restart the server:
+              </p>
+              {result.suggestedConfig && (
+                <pre className="bg-muted/40 overflow-x-auto rounded-md p-2 text-xs">
+                  <code>{result.suggestedConfig}</code>
+                </pre>
+              )}
+            </>
+          )}
+
+          {result.skipped.length > 0 && (
+            <div className="border-destructive/40 bg-destructive/5 rounded-md border p-2 text-xs">
+              <p className="font-semibold">
+                {result.skipped.length} table
+                {result.skipped.length === 1 ? '' : 's'} could not be scanned — this
+                result is incomplete:
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {result.skipped.map((skip) => (
+                  <li key={skip.table}>
+                    <code className="font-mono">{skip.table}</code> ({skip.reason})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       )}
     </div>
   )
