@@ -5,7 +5,7 @@ Guidance for AI agents working in this repo. (Humans: see [README.md](README.md)
 ## What this is
 
 `eng-ops` — a generic, introspection-driven Postgres admin UI (TanStack Start +
-Router + Query + Table, shadcn/ui, Refine). Structure comes from `pg_catalog`
+Router + Query + Table, shadcn/ui). Structure comes from `pg_catalog`
 introspection; row data from live queries. Nothing is hardcoded per table.
 
 ## Run & verify
