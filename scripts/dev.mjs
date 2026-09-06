@@ -21,10 +21,27 @@
  */
 import { spawn } from 'node:child_process'
 
-import { envForChild, portlessAvailable } from './lib/portlock.mjs'
+import { ensurePorts, envForChild, portlessAvailable } from './lib/portlock.mjs'
+
+// Read the ports from the claim, and as integers.
+//
+// The obvious source is the child's environment, but that object is the whole
+// process environment merged with .env — DATABASE_URL and every other secret on
+// the machine — and a log line is the easiest place for one of those to escape.
+// So the two numbers that get printed come from the generated claim and are
+// parsed as numbers; the environment is built separately and only ever handed
+// to the child.
+const claim = await ensurePorts()
+const webPort = Number(claim.WEB_PORT)
+const portBase = Number(claim.PORTBASE)
+if (!Number.isInteger(webPort) || !Number.isInteger(portBase)) {
+  console.error(
+    '[eng-ops] .worktree/ports.env is malformed. Run `npm run ports:release`, then try again.',
+  )
+  process.exit(1)
+}
 
 const env = await envForChild()
-const webPort = env.WEB_PORT
 
 const optedOut = process.env.PORTLESS === '0'
 const wanted = process.env.PORTLESS === '1'
@@ -46,9 +63,9 @@ if (optedOut || (!available && !wanted)) {
   // No --name: `portless run` infers it from package.json and, in a linked git
   // worktree, prepends the branch as a subdomain — so every worktree gets its
   // own URL for free, which is the whole reason to layer it on.
-  command = ['portless', 'run', '--app-port', webPort, 'npx', 'vite', 'dev']
+  command = ['portless', 'run', '--app-port', String(webPort), 'npx', 'vite', 'dev']
 }
 
-console.log(`[eng-ops] dev server on port ${webPort} (portlock block ${env.PORTBASE})`)
+console.log(`[eng-ops] dev server on port ${webPort} (portlock block ${portBase})`)
 const child = spawn(command[0], command.slice(1), { stdio: 'inherit', env })
 child.on('exit', (code, signal) => process.exit(signal ? 1 : (code ?? 0)))

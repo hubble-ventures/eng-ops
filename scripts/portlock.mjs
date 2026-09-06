@@ -36,5 +36,11 @@ if (mode === '--release') {
   child.on('exit', (code, signal) => process.exit(signal ? 1 : (code ?? 0)))
 } else {
   const ports = await acquire()
-  console.log(`${PORTS_ENV}\nPORTBASE=${ports.PORTBASE} WEB_PORT=${ports.WEB_PORT} POSTGRES_PORT=${ports.POSTGRES_PORT}`)
+  // Numbers only. `--print` dumps the file verbatim because that is what it is
+  // for, but this summary line has no business interpolating whatever else the
+  // claim happens to carry.
+  const summary = ['PORTBASE', 'WEB_PORT', 'POSTGRES_PORT']
+    .map((name) => `${name}=${Number(ports[name])}`)
+    .join(' ')
+  console.log(`${PORTS_ENV}\n${summary}`)
 }
