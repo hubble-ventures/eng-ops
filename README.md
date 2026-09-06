@@ -7,8 +7,7 @@ search, sort, and (optionally) create/update/delete rows. No per-database code,
 no codegen.
 
 Built with **TanStack Start** (SSR + server functions), **TanStack Router**,
-**TanStack Query**, **TanStack Table**, **shadcn/ui** (Tailwind v4), and
-**Refine** for the CRUD layer.
+**TanStack Query**, **TanStack Table**, and **shadcn/ui** (Tailwind v4).
 
 > [!WARNING]
 > **eng-ops has no authentication and no authorization.** Anyone who can reach
@@ -296,7 +295,6 @@ queries**. Nothing is hardcoded per table.
 | Dev launcher (portlock + portless) | `scripts/dev.mjs` |
 | Server functions (RPC, zod-validated) | `src/lib/functions.ts` |
 | Query keys + `queryOptions` + label helpers | `src/lib/queries.ts` |
-| Refine data provider / notifications / row id | `src/lib/refine/*` |
 | Data grid | `src/components/DataTable.tsx` |
 | CRUD forms + dialogs | `src/components/RecordForm.tsx`, `RecordDialogs.tsx` |
 | Merge dialog | `src/components/MergeRecordDialog.tsx` |
@@ -342,8 +340,9 @@ This repo is set up for agent-assisted development and UI testing:
 
 ## Roadmap
 
-- [`docs/ui-upgrade-plan.md`](docs/ui-upgrade-plan.md) — the TanStack Table +
-  shadcn (Phase 1) → Refine CRUD (Phase 2) plan.
+- [`docs/ui-upgrade-plan.md`](docs/ui-upgrade-plan.md) — the original two-phase
+  UI plan, kept for the reasoning. Both phases shipped; the Refine layer it
+  proposed was later removed again (see its status note).
 - [`docs/ux-improvements.md`](docs/ux-improvements.md) — the developer-UX audit
   and prioritized backlog (P0/P1 done; P2/P3 open — searchable FK pickers,
   mobile card view, bulk actions, export, etc.).

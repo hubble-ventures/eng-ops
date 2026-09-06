@@ -16,6 +16,12 @@ existing server functions via a custom data provider.
 >   auto-generated forms, delete confirmation, and sonner notifications.
 >   Verified end-to-end against a throwaway Postgres.
 >
+> **Superseded:** the Refine layer described in Phase 2 was removed again in
+> "Data layer: drop Refine + type-aware column filters" (#3). The CRUD surface
+> it introduced stayed — forms, delete confirmation, notifications — now driven
+> by the server functions directly, with no data-provider indirection. The plan
+> below is kept for the reasoning, not as a description of the current code.
+>
 > Not yet done (Phase 2 follow-ups): searchable FK pickers in forms (FK fields
 > are plain typed inputs today), composite-PK record *viewing* (the detail
 > route still identifies a row by a single PK value, though writes derive the
