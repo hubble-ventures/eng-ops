@@ -1,0 +1,30 @@
+# Never bake secrets or host-specific state into an image.
+.env
+.env.*
+engops.config.json
+.worktree
+
+.git
+.github
+node_modules
+dist
+.output
+.vinxi
+.tanstack
+
+# Agent/editor tooling — irrelevant to the build.
+.agents
+.argent
+.claude
+.codex
+.cursor
+.gemini
+.kiro
+.vscode
+docs
+
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose.yml
