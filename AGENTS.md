@@ -14,6 +14,7 @@ introspection; row data from live queries. Nothing is hardcoded per table.
 npm install
 npm run typecheck        # must pass before you consider a change done
 npm run dev              # prints the URL; `npm run ports` reprints it
+npm run check            # why won't it start? validates config + connectivity
 ```
 
 - **Nothing listens on a fixed port.** `scripts/portlock.mjs` claims a stable
@@ -26,8 +27,13 @@ npm run dev              # prints the URL; `npm run ports` reprints it
   `.env` wins over it.
 - The introspection cache is process-lifetime — **restart the dev server after
   a schema change.**
+- Production entrypoint is `bin/eng-ops.mjs` (used by `npm start`, the container
+  and the published package) on top of `server/index.mjs`. Changing how the app
+  is served means changing those two files — see
+  [docs/running.md](docs/running.md).
 - Prefer verifying real behavior over asserting it: drive the running app and
-  check the result.
+  check the result. `/healthz` and `/readyz` are cheap liveness/readiness
+  probes on a running instance.
 
 ## Safety rules (important)
 

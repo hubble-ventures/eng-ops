@@ -7,6 +7,7 @@ on:
 
 jobs:
   ci:
+    name: typecheck + build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,3 +22,88 @@ jobs:
           # Build only bundles code; a valid-looking URL keeps env validation
           # happy if anything evaluates it at build time. Not a real database.
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+
+  container:
+    name: container + compose
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Bare `docker compose` (no portlock) falls back to 3000/5432, which is
+      # what a clean runner has free.
+      - name: Build the image and start the stack
+        run: docker compose --profile app up -d --build --wait --wait-timeout 180
+
+      - name: Load the demo schema
+        run: docker compose --profile seed run --rm seed
+
+      - name: Probe the running app
+        run: |
+          set -euo pipefail
+          curl -fsS http://127.0.0.1:3000/healthz | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS http://127.0.0.1:3000/readyz  | tee /dev/stderr | grep -q '"database":"reachable"'
+          # SSR must render real rows, not just a shell. -a because the
+          # hydration payload embeds NUL bytes (router match-id separators),
+          # which otherwise make grep treat the page as binary.
+          curl -fsSL http://127.0.0.1:3000/entities/public.users -o page.html
+          grep -aq 'example.com' page.html
+          # Hashed client assets must be served with immutable caching.
+          asset=$(grep -ao '/assets/[A-Za-z0-9_.-]*\.css' page.html | head -1)
+          curl -fsSI "http://127.0.0.1:3000$asset" | grep -qi 'cache-control: public, max-age=31536000, immutable'
+
+      - name: Stop gracefully (must exit 0)
+        run: |
+          set -euo pipefail
+          docker compose --profile app stop app
+          test "$(docker compose --profile app ps -a --format '{{.ExitCode}}' app)" = "0"
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: docker compose --profile app ps && docker compose --profile app logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose --profile app --profile seed down -v
+
+  package:
+    name: npm package
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Exactly what `npx @hubble-ventures/eng-ops` will do: install the
+      # tarball with no dev dependencies and run the shipped bin.
+      - name: Pack and install as a consumer
+        run: |
+          set -euo pipefail
+          npm pack --pack-destination /tmp
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y > /dev/null
+          npm install /tmp/hubble-ventures-eng-ops-*.tgz
+
+      - name: Seed and verify the shipped CLI serves the app
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/seed.sql > /dev/null
+          /tmp/consumer/node_modules/.bin/eng-ops --check
+          /tmp/consumer/node_modules/.bin/eng-ops --port 3000 &
+          for _ in $(seq 1 30); do curl -fsS http://127.0.0.1:3000/healthz && break; sleep 1; done
+          curl -fsSL http://127.0.0.1:3000/entities/public.users | grep -aq 'example.com'

@@ -45,7 +45,24 @@ Built with **TanStack Start** (SSR + server functions), **TanStack Router**,
 
 ## Quick start
 
-Requires **Node ≥ 20.19** and a reachable Postgres.
+Point it at a database and open <http://localhost:3000>. Pick whichever shape
+fits — they run the same entrypoint and behave identically.
+
+**npx** — nothing to clone, nothing to build:
+
+```bash
+npx @hubble-ventures/eng-ops --database-url postgres://user:pass@host:5432/db
+```
+
+**Container** — non-root, health-checked, multi-arch:
+
+```bash
+docker run --rm --init -p 127.0.0.1:3000:3000 \
+  -e DATABASE_URL=postgres://user:pass@host:5432/db \
+  ghcr.io/hubble-ventures/eng-ops:latest
+```
+
+**From a checkout** — what you want for development (Node ≥ 20.19):
 
 ```bash
 npm install
@@ -57,10 +74,12 @@ npm run ports               # …or ask for it any time
 The dev server does not use a fixed port. Each checkout claims its own stable
 port block so parallel worktrees never collide — see [Ports](#ports).
 
+`npm run check` answers "why won't it start?" — it validates the
+configuration and the database connection, then exits.
+
 ### Don't have a database handy?
 
-Spin up a throwaway Postgres and load a small demo schema
-(`users` / `posts` / `comments`):
+Spin up a throwaway Postgres and load a small demo schema:
 
 ```bash
 npm run db:up               # Postgres on this checkout's claimed port
@@ -75,18 +94,23 @@ is written to `.worktree/ports.env`, which the app falls back to. A
 pointing eng-ops at your own database stays the normal case.
 
 Use `npm run db:down` to stop it, and `npm run ports:release` when you are done
-with a checkout entirely.
+with a checkout entirely. To run the *containerised* app against that same
+database instead of the dev server, `npm run app:up` (and `npm run app:down`).
 
-> `npm run seed` runs DDL + DML (drops/recreates `users`/`posts`/`comments`).
+> The seed runs DDL + DML (drops/recreates `users`/`posts`/`comments`).
 > Only run it against a database you're happy to modify. To isolate it, create a
 > dedicated schema and set `PGSCHEMA` (see below).
+
+**[`docs/running.md`](docs/running.md)** is the full reference: every flag,
+Kubernetes and Compose sidecar manifests, health endpoints, and troubleshooting.
 
 ---
 
 ## Configuration
 
-All settings come from `.env` (or real environment variables, which win).
-Only `DATABASE_URL` is required.
+Settings come from command-line flags, real environment variables, or `.env`,
+in that order of precedence. Only `DATABASE_URL` is required. Every variable
+below has a matching flag — run `eng-ops --help` for the list.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -97,6 +121,8 @@ Only `DATABASE_URL` is required.
 | `ENGOPS_WRITE` | off | `1`/`true` enables create/update/delete. See below. |
 | `ENGOPS_CONFIG` | `./engops.config.json` | Path to the optional JSON config file. |
 | `ENGOPS_COLUMN_ORDER` | `natural` | Global column-ordering strategy: `natural` (DB order) or `smart` (PK → name-like → FKs first, audit timestamps last). |
+| `PORT` | `3000` | Port to listen on. |
+| `HOST` | `127.0.0.1` | Address to bind. Loopback by default because eng-ops has no auth; the container image sets `0.0.0.0`. |
 
 The introspected schema is cached for the process lifetime — **restart the dev
 server after changing your database schema.**
@@ -300,17 +326,30 @@ queries**. Nothing is hardcoded per table.
 | Merge dialog | `src/components/MergeRecordDialog.tsx` |
 | shadcn/ui primitives | `src/components/ui/*` |
 | Routes | `src/routes/*` |
+| CLI: flags, preflight, `--wait-for-db` | `bin/eng-ops.mjs` |
+| HTTP server: static assets, health probes, SSR | `server/index.mjs` |
+| Container image | `Dockerfile`, `docker-compose.yml` |
+
+`vite build` emits a fetch handler plus hashed assets, not a listening server —
+`server/index.mjs` is what binds the port, serves `dist/client`, answers
+`/healthz` and `/readyz`, and delegates the rest to the SSR handler. `npx`, the
+container and `npm start` all reach it through the same CLI, so there is exactly
+one runtime path to reason about.
 
 ### Scripts
 
 ```bash
 npm run dev            # dev server (HMR) on this checkout's claimed port
-npm run build          # production build
-npm run start          # run the production build
+npm run build          # production build (dist/)
+npm start              # serve the production build on the claimed port
+npm run check          # validate config + database connectivity, then exit
 npm run typecheck      # tsc --noEmit
 npm run seed           # load the demo schema into $DATABASE_URL
 npm run db:up          # start the throwaway Postgres
 npm run db:down        # stop it
+npm run app:up         # run the containerised app against it
+npm run app:down       # stop it
+npm run docker:build   # build the container image as eng-ops:local
 npm run ports          # show this checkout's claimed ports
 npm run ports:release  # give the port block back
 ```
@@ -356,7 +395,10 @@ This repo is set up for agent-assisted development and UI testing:
   values are parameterized; writes are transactional and single-row-guarded.
 - **Least privilege** — prefer a read-only role; only grant write privileges and
   set `ENGOPS_WRITE=1` when you need editing.
-- **Secrets** — `.env` is git-ignored; never commit real connection strings.
+- **Secrets** — `.env` is git-ignored and excluded from the container image;
+  never commit real connection strings. Connection strings are redacted in logs.
+- **Container** — runs as the non-root `node` user with no build toolchain and
+  no install scripts baked in.
 - Please report vulnerabilities privately to the maintainer rather than opening a
   public issue.
 
